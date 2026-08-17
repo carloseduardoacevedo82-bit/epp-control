@@ -4,8 +4,8 @@ node_modules
 .gitignore
 *.bat
 cloudflared.exe
-dev.db
 dev.db-journal
+
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
