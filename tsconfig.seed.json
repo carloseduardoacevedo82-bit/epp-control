@@ -1,0 +1,12 @@
+// tsconfig.seed.json - tsconfig específico para ejecutar el seed con ts-node
+{
+  "compilerOptions": {
+    "module": "CommonJS",
+    "target": "ES2020",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "moduleResolution": "node",
+    "strict": false,
+    "skipLibCheck": true
+  }
+}

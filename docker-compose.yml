@@ -1,0 +1,21 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: epp-control-app
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=file:/app/data/epp.db
+      - STORAGE_PATH=/app/data/constancias
+    volumes:
+      # Volumen persistente para base de datos SQLite y PDFs de constancias
+      - epp_data:/app/data
+
+volumes:
+  epp_data:
+    driver: local

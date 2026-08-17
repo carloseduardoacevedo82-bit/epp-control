@@ -1,0 +1,111 @@
+// Prisma Schema - EPP Control DALUPEZMAR S.A.C.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Usuario {
+  id            Int       @id @default(autoincrement())
+  email         String    @unique
+  nombre        String
+  rol           String    @default("SUPERVISOR") // ADMIN | SUPERVISOR
+  cargo         String?
+  pin           String?   // PIN rápido para campo
+  activo        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  entregas      Entrega[]
+}
+
+model Trabajador {
+  id              Int                @id @default(autoincrement())
+  dni             String             @unique
+  nombres         String
+  apellidos       String
+  cargo           String
+  area            String
+  fechaIngreso    DateTime           @default(now())
+  tallaPantalon   String?
+  tallaCamisa     String?
+  tallaCalzado    String?
+  estado          String             @default("activo") // activo | inactivo
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  entregas        Entrega[]
+  constancias     ConstanciaArchivo[]
+}
+
+model ArticuloEPP {
+  id              Int              @id @default(autoincrement())
+  codigo          String           @unique
+  nombre          String
+  categoria       String           // Protección Cabeza, Calzado, Uniforme, etc.
+  talla           String?
+  costoUnitario   Float
+  vidaUtilDias    Int
+  stockActual     Int              @default(0)
+  stockMinimo     Int              @default(5)
+  marcaFabricante String?          @default("Estándar")
+  activo          Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  detalles        DetalleEntrega[]
+}
+
+model Entrega {
+  id                 Int                 @id @default(autoincrement())
+  trabajadorId       Int
+  trabajador         Trabajador          @relation(fields: [trabajadorId], references: [id])
+  fechaEntrega       DateTime            @default(now())
+  firmaDigitalUrl    String?             // base64 PNG
+  observaciones      String?
+  rutaPdf            String?             // Ruta relativa estructurada del PDF generado
+  hashVerificacion   String?             // Código / Hash de integridad
+  creadoPorId        Int?
+  creadoPor          Usuario?            @relation(fields: [creadoPorId], references: [id])
+  createdAt          DateTime            @default(now())
+  detalles           DetalleEntrega[]
+  constanciaArchivos ConstanciaArchivo[]
+}
+
+model DetalleEntrega {
+  id                     Int         @id @default(autoincrement())
+  entregaId              Int
+  entrega                Entrega     @relation(fields: [entregaId], references: [id], onDelete: Cascade)
+  articuloId             Int
+  articulo               ArticuloEPP @relation(fields: [articuloId], references: [id])
+  cantidad               Int
+  costoUnitarioMomento   Float
+  costoTotal             Float
+  fechaRenovacionCalc    DateTime
+  estadoRenovacion       String      @default("Vigente") // Vigente | Por Vencer | Vencido
+  createdAt              DateTime    @default(now())
+}
+
+model LogImportacion {
+  id                 Int      @id @default(autoincrement())
+  nombreArchivo      String
+  totalFilas         Int
+  filasExitosas      Int
+  filasConError      Int
+  detallesJson       String?  // JSON serializado de resumen / advertencias
+  usuarioResponsable String?  @default("Admin SST")
+  createdAt          DateTime @default(now())
+}
+
+model ConstanciaArchivo {
+  id             Int        @id @default(autoincrement())
+  entregaId      Int
+  entrega        Entrega    @relation(fields: [entregaId], references: [id], onDelete: Cascade)
+  trabajadorId   Int
+  trabajador     Trabajador @relation(fields: [trabajadorId], references: [id], onDelete: Cascade)
+  rutaRelativa   String     // Ej: constancias/61376102_Manrique_Romani/2026-08-16_Acta_00001.pdf
+  rutaAbsoluta   String?
+  nombreArchivo  String
+  pesoBytes      Int        @default(0)
+  mimeType       String     @default("application/pdf")
+  createdAt      DateTime   @default(now())
+}
