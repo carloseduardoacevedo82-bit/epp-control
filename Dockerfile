@@ -29,8 +29,10 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
-# Generar cliente de Prisma para la compilación
+# Generar cliente de Prisma, sincronizar esquema y sembrar datos base
 RUN npx prisma generate
+RUN npx prisma db push
+RUN npx ts-node --compiler-options "{\"module\":\"CommonJS\"}" prisma/seed.ts
 
 # Construir la aplicación Next.js en modo Standalone
 RUN npm run build
@@ -54,12 +56,16 @@ RUN addgroup --system --gid 1001 nodejs && \
 RUN mkdir -p /app/public/constancias /app/data && \
     chown -R nextjs:nodejs /app/public/constancias /app/data
 
+# Copiar base de datos pre-sembrada
+COPY --from=builder --chown=nextjs:nodejs /app/dev.db ./dev.db
+
 # Copiar artefactos compilados y assets estáticos
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder /app/prisma ./prisma
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+
 
 USER nextjs
 
