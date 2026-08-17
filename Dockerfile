@@ -45,8 +45,8 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
+
 
 # Crear usuario y grupo de seguridad sin privilegios root
 RUN addgroup --system --gid 1001 nodejs && \
@@ -69,6 +69,7 @@ COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 
 USER nextjs
 
+EXPOSE 10000
 EXPOSE 3000
 
 # Ejecutar el servidor standalone de Next.js
