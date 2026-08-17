@@ -27,15 +27,12 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV NODE_ENV=production
-
-# Generar cliente de Prisma, sincronizar esquema y sembrar datos base
+# Generar cliente de Prisma
 RUN npx prisma generate
-RUN npx prisma db push
-RUN npx ts-node --compiler-options "{\"module\":\"CommonJS\"}" prisma/seed.ts
 
 # Construir la aplicación Next.js en modo Standalone
 RUN npm run build
+
 
 # ------------------------------------------------------------------------------
 # 3. Servidor de Producción (runner)

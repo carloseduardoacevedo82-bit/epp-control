@@ -35,11 +35,11 @@ yarn-error.log*
 !.env.example
 
 # databases & binaries
-*.db
 *.db-journal
 cloudflared.exe
 .tools/
 reportes_mensuales/
+
 
 # vercel
 .vercel
