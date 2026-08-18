@@ -21,21 +21,26 @@ model Usuario {
 }
 
 model Trabajador {
-  id              Int                @id @default(autoincrement())
-  dni             String             @unique
-  nombres         String
-  apellidos       String
-  cargo           String
-  area            String
-  fechaIngreso    DateTime           @default(now())
-  tallaPantalon   String?
-  tallaCamisa     String?
-  tallaCalzado    String?
-  estado          String             @default("activo") // activo | inactivo
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
-  entregas        Entrega[]
-  constancias     ConstanciaArchivo[]
+  id                 Int                @id @default(autoincrement())
+  dni                String             @unique
+  codigoFotocheck    String?            @unique
+  nombres            String
+  apellidos          String
+  cargo              String
+  area               String
+  grupoSanguineo     String?
+  contactoEmergencia String?
+  plantaPrincipal    String?
+  fotoUrl            String?
+  fechaIngreso       DateTime           @default(now())
+  tallaPantalon      String?
+  tallaCamisa        String?
+  tallaCalzado       String?
+  estado             String             @default("activo") // activo | inactivo
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  entregas           Entrega[]
+  constancias        ConstanciaArchivo[]
 }
 
 model ArticuloEPP {

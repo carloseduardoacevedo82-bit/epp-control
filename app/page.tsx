@@ -201,6 +201,14 @@ export default function DashboardPage() {
 
         {/* Acciones Rápidas del Banner */}
         <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={() => setShowScannerModal(true)}
+            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-blue-500/20 transition active:scale-95"
+            title="Escanear fotocheck físico con la cámara del celular"
+          >
+            <Scan size={15} /> Escanear Fotocheck
+          </button>
+
           {isAdmin ? (
             <>
               <button
@@ -216,20 +224,13 @@ export default function DashboardPage() {
                 <Download size={15} className="text-blue-600 dark:text-slate-300" /> Plantilla Base
               </button>
             </>
-          ) : (
-            <button
-              onClick={() => setShowScannerModal(true)}
-              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-blue-500/20 transition active:scale-95"
-            >
-              <Scan size={15} /> Escáner de Campo
-            </button>
-          )}
+          ) : null}
 
           <Link
             href="/trabajadores"
-            className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition active:scale-95"
+            className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1.5 shadow-sm transition active:scale-95"
           >
-            <Users size={15} /> + Colaborador
+            <Users size={15} /> Colaboradores
           </Link>
 
           <Link
@@ -560,9 +561,10 @@ export default function DashboardPage() {
         onScan={handleScanCode}
         mode="trabajador"
         presets={[
-          { code: '61376102', label: 'Manrique Romani, Lourdes', desc: 'DNI Producción' },
-          { code: '70333107', label: 'Maravi Maldonado, Yorben', desc: 'DNI Producción' },
-          { code: '80490280', label: 'Mendoza Shahuano, Merlita', desc: 'DNI Producción' },
+          { code: 'DAL-1012', label: 'Cahuaza Muena, Dempster', desc: 'DNI: 63401773 • Troquelado' },
+          { code: '63401773', label: 'DNI Dempster Cahuaza (Barras)', desc: 'Troquelado de Anillas' },
+          { code: 'DAL-1001', label: 'Acevedo Mendoza, Carlos Eduardo', desc: 'DNI: 005704276 • Supervisor' },
+          { code: 'DAL-1002', label: 'Agüero Paredes, Lucia Juana', desc: 'DNI: 20569691 • Producción' },
         ]}
       />
     </div>

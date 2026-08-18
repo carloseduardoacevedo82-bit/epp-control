@@ -13,10 +13,15 @@ export interface UsuarioSession {
 export interface Trabajador {
   id: number
   dni: string
+  codigoFotocheck?: string | null
   nombres: string
   apellidos: string
   cargo: string
   area: string
+  grupoSanguineo?: string | null
+  contactoEmergencia?: string | null
+  plantaPrincipal?: string | null
+  fotoUrl?: string | null
   fechaIngreso: string
   tallaPantalon?: string | null
   tallaCamisa?: string | null

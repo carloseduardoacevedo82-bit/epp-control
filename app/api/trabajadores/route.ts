@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { sincronizarTrabajadorHaciaAsistencia } from '@/lib/syncAsistencia'
 
 export async function GET(req: NextRequest) {
   try {
@@ -18,6 +19,8 @@ export async function GET(req: NextRequest) {
                 { nombres: { contains: search } },
                 { apellidos: { contains: search } },
                 { dni: { contains: search } },
+                { codigoFotocheck: { contains: search } },
+                { cargo: { contains: search } },
               ],
             }
           : {}),
@@ -36,11 +39,14 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     const trabajador = await prisma.trabajador.create({ data: body })
+    // Sincronizar en tiempo real con sistema de asistencia y fotochecks
+    sincronizarTrabajadorHaciaAsistencia(trabajador)
     return NextResponse.json(trabajador, { status: 201 })
   } catch (error: unknown) {
     if ((error as { code?: string }).code === 'P2002') {
-      return NextResponse.json({ error: 'El DNI ya existe' }, { status: 409 })
+      return NextResponse.json({ error: 'El DNI o Código de Fotocheck ya existe' }, { status: 409 })
     }
     return NextResponse.json({ error: 'Error al crear trabajador' }, { status: 500 })
   }
 }
+

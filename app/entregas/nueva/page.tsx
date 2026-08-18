@@ -152,6 +152,7 @@ function NuevaEntregaContent() {
           const match = t.find(
             (w: Trabajador) =>
               w.dni.includes(initialSearch) ||
+              (w.codigoFotocheck && w.codigoFotocheck.toLowerCase() === initialSearch.toLowerCase()) ||
               `${w.apellidos} ${w.nombres}`.toLowerCase().includes(initialSearch.toLowerCase())
           )
           if (match) {
@@ -287,6 +288,7 @@ function NuevaEntregaContent() {
     const query = busquedaTrabajador.toLowerCase()
     return (
       t.dni.includes(query) ||
+      (t.codigoFotocheck && t.codigoFotocheck.toLowerCase().includes(query)) ||
       t.nombres.toLowerCase().includes(query) ||
       t.apellidos.toLowerCase().includes(query) ||
       t.area.toLowerCase().includes(query)
@@ -462,10 +464,17 @@ function NuevaEntregaContent() {
                     }`}
                   >
                     <div>
-                      <div className="flex items-center justify-between">
-                        <span className="font-mono text-xs font-black text-blue-700 dark:text-cyan-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800">
-                          {t.dni}
-                        </span>
+                      <div className="flex items-center justify-between gap-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-mono text-xs font-black text-blue-700 dark:text-cyan-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800">
+                            {t.dni}
+                          </span>
+                          {t.codigoFotocheck && (
+                            <span className="font-mono text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                              📷 {t.codigoFotocheck}
+                            </span>
+                          )}
+                        </div>
                         <span className="badge-area text-[10px]">{t.area}</span>
                       </div>
                       <p className="font-black text-sm text-slate-950 dark:text-white mt-2">
@@ -920,17 +929,25 @@ function NuevaEntregaContent() {
         onClose={() => setShowScannerTrabajador(false)}
         onScan={code => {
           setBusquedaTrabajador(code)
-          const match = trabajadores.find(t => t.dni === code)
+          const normalizedCode = code.trim().toUpperCase()
+          const match = trabajadores.find(
+            t =>
+              t.dni === code ||
+              (t.codigoFotocheck && t.codigoFotocheck.toUpperCase() === normalizedCode) ||
+              `${t.apellidos} ${t.nombres}`.toLowerCase().includes(code.toLowerCase())
+          )
           if (match) {
             setTrabajadorSeleccionado(match)
             setStep(2)
           }
         }}
         mode="trabajador"
+        workersList={trabajadores}
         presets={[
-          { code: '61376102', label: 'Manrique Romani, Lourdes', desc: 'Operario Producción' },
-          { code: '70333107', label: 'Maravi Maldonado, Yorben', desc: 'Operario Producción' },
-          { code: '80490280', label: 'Mendoza Shahuano, Merlita', desc: 'Operario Producción' },
+          { code: 'DAL-1012', label: 'Cahuaza Muena, Dempster', desc: 'DNI: 63401773 • Troquelado' },
+          { code: '63401773', label: 'DNI Dempster Cahuaza (Barras)', desc: 'Troquelado de Anillas' },
+          { code: 'DAL-1001', label: 'Acevedo Mendoza, Carlos Eduardo', desc: 'DNI: 005704276 • Supervisor' },
+          { code: 'DAL-1002', label: 'Agüero Paredes, Lucia Juana', desc: 'DNI: 20569691 • Producción' },
         ]}
       />
 
@@ -939,16 +956,19 @@ function NuevaEntregaContent() {
         onClose={() => setShowScannerArticulo(false)}
         onScan={code => {
           setBusquedaArticulo(code)
-          const match = articulos.find(a => a.codigo === code)
+          const match = articulos.find(
+            a => a.codigo.toUpperCase() === code.toUpperCase() || a.nombre.toLowerCase().includes(code.toLowerCase())
+          )
           if (match) {
             agregarArticulo(match)
           }
         }}
         mode="articulo"
         presets={[
-          { code: 'EPP-CAS-01', label: 'Casco Dielectrico Blanco', desc: 'Cabeza' },
-          { code: 'CAL-BOT-42', label: 'Botines Punta Acero 42', desc: 'Calzado' },
-          { code: 'UNI-POL-L', label: 'Polo Manga Larga Cintas Reflectivas', desc: 'Uniforme' },
+          { code: 'EPP-001', label: 'Casco de Seguridad Dielectrico', desc: 'Cabeza' },
+          { code: 'EPP-002', label: 'Lentes de Seguridad Anti-empañante', desc: 'Ocular' },
+          { code: 'EPP-014', label: 'Zapato de Seguridad Punta Acero', desc: 'Calzado' },
+          { code: 'UNI-002', label: 'Polo Manga Larga Algodón', desc: 'Uniforme' },
         ]}
       />
 

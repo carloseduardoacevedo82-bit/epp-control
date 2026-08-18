@@ -1,53 +1,50 @@
 @echo off
-chcp 65001 >nul
-echo.
-echo ╔══════════════════════════════════════════════════════════════╗
-echo ║       DALUPEZMAR S.A.C. - PUBLICAR EN GITHUB / NUBE          ║
-echo ╚══════════════════════════════════════════════════════════════╝
+setlocal
+cd /d "%~dp0"
+
+echo =======================================================
+echo    DALUPEZMAR S.A.C. - SUBIR PROYECTO A GITHUB
+echo =======================================================
 echo.
 
-:: Verificar si git está configurado
 set "GIT_CMD=.tools\cmd\git.exe"
-if not exist "%GIT_CMD%" (
-    set "GIT_CMD=git"
+if not exist "%GIT_CMD%" set "GIT_CMD=git"
+
+echo Configurando repositorio remoto...
+"%GIT_CMD%" remote remove origin >nul 2>&1
+"%GIT_CMD%" remote add origin https://github.com/carloseduardoacevedo82-bit/epp-control.git
+
+echo.
+echo =======================================================
+echo Para autorizar la subida a GitHub:
+echo 1. Abre este enlace en tu navegador:
+echo    https://github.com/settings/tokens/new?scopes=repo^&description=epp-control
+echo 2. Haz clic abajo en el boton verde "Generate token".
+echo 3. Copia el token generado (empieza por ghp_...)
+echo =======================================================
+echo.
+
+set /p TOKEN="Pega aqui tu token de GitHub (o presiona ENTER para intentar con tus credenciales): "
+
+if not "%TOKEN%"=="" (
+    echo Configurando acceso autenticado...
+    "%GIT_CMD%" remote set-url origin https://%TOKEN%@github.com/carloseduardoacevedo82-bit/epp-control.git
 )
 
-echo Verificando estado del repositorio...
-"%GIT_CMD%" status --short
-
 echo.
-echo ────────────────────────────────────────────────────────────────
-echo Si aún no has conectado tu repositorio de GitHub:
-echo 1. Entra a https://github.com/new y crea un repositorio (ej: epp-control)
-echo 2. Pega la URL de tu repositorio a continuación.
-echo    (Ejemplo: https://github.com/TU_USUARIO/epp-control.git)
-echo ────────────────────────────────────────────────────────────────
-echo.
-
-set /p REPO_URL="Ingresa la URL de tu repositorio de GitHub (o presiona ENTER si ya está configurado): "
-
-if not "%REPO_URL%"=="" (
-    echo Configurando repositorio remoto...
-    "%GIT_CMD%" remote remove origin >nul 2>&1
-    "%GIT_CMD%" remote add origin %REPO_URL%
-)
-
-echo.
-echo Guardando cambios y subiendo a GitHub (rama main)...
-"%GIT_CMD%" add .
-"%GIT_CMD%" commit -m "update: actualizacion del proyecto para la nube" >nul 2>&1
+echo Enviando archivos a GitHub (rama main)...
 "%GIT_CMD%" branch -M main
 "%GIT_CMD%" push -u origin main
 
 if %ERRORLEVEL% equ 0 (
     echo.
-    echo ╔══════════════════════════════════════════════════════════════╗
-    echo ║  ✅ PROYECTO SUBIDO CON ÉXITO A GITHUB                      ║
-    echo ║  Ahora puedes ir a Render o Railway para desplegarlo 24/7. ║
-    echo ╚══════════════════════════════════════════════════════════════╝
+    echo =======================================================
+    echo    [EXITO] Proyecto subido correctamente a GitHub!
+    echo    Ahora puedes desplegarlo en Render o Railway.
+    echo =======================================================
 ) else (
     echo.
-    echo [AVISO] Si GitHub te solicitó autenticación, asegúrate de iniciar sesión en el navegador o ingresar tu Personal Access Token.
+    echo [ERROR] No se pudo completar la subida. Verifica tu token o conexion.
 )
 
 echo.
