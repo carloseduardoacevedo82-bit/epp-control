@@ -13,6 +13,7 @@ export interface SyncResult {
   creados: number
   actualizados: number
   inactivados: number
+  origen: 'NUBE_API' | 'SQLITE_LOCAL'
   detalles: Array<{
     dni: string
     codigoFotocheck: string | null
@@ -23,7 +24,38 @@ export interface SyncResult {
   }>
 }
 
-export async function sincronizarTrabajadoresDesdeAsistencia(): Promise<SyncResult> {
+/**
+ * Obtener colaboradores desde la API en la nube (Render) o base SQLite local
+ */
+async function obtenerColaboradoresDesdeAsistencia(): Promise<{ employees: any[]; origen: 'NUBE_API' | 'SQLITE_LOCAL' }> {
+  const apiUrl = process.env.ASISTENCIA_API_URL || 'https://dalupezmar-asistencia.onrender.com/api/v1'
+  
+  // 1. Intentar primero consumir la API en la nube oficial de DALUPEZMAR Asistencia
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 8000)
+
+    const res = await fetch(`${apiUrl}/sync/employees`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'EPP-Control-Sync/1.0'
+      },
+      signal: controller.signal
+    })
+    clearTimeout(timeoutId)
+
+    if (res.ok) {
+      const json = await res.json()
+      if (json && json.success && Array.isArray(json.data) && json.data.length > 0) {
+        return { employees: json.data, origen: 'NUBE_API' }
+      }
+    }
+  } catch (apiErr: any) {
+    console.warn('[Sync Asistencia] No se pudo conectar a la API nube de Asistencia:', apiErr.message)
+  }
+
+  // 2. Fallback a base de datos SQLite local si se ejecuta en entorno local
   const posiblesRutas = [
     path.join(process.cwd(), '..', 'sistema-asistencia-fotocheck', 'database', 'asistencia.db'),
     path.join(process.cwd(), 'scratch', 'sistema-asistencia-fotocheck', 'database', 'asistencia.db'),
@@ -38,38 +70,48 @@ export async function sincronizarTrabajadoresDesdeAsistencia(): Promise<SyncResu
     }
   }
 
-  if (!dbAsistenciaPath) {
-    throw new Error('No se encontró el archivo de base de datos del sistema de asistencia (asistencia.db)')
+  if (dbAsistenciaPath) {
+    try {
+      const asisDb = getAsistenciaDb(dbAsistenciaPath)
+      const rows = asisDb
+        .prepare(`
+          SELECT 
+            e.id,
+            e.employee_code,
+            e.document_type,
+            e.document_number,
+            e.first_name,
+            e.last_name,
+            e.status,
+            e.blood_type,
+            e.emergency_contact_phone,
+            e.hire_date,
+            d.name as department_name,
+            p.name as position_name,
+            b.name as branch_name,
+            bg.badge_code,
+            bg.barcode_value,
+            bg.qr_token_hash
+          FROM employees e
+          LEFT JOIN departments d ON e.department_id = d.id
+          LEFT JOIN positions p ON e.position_id = p.id
+          LEFT JOIN branches b ON e.branch_id = b.id
+          LEFT JOIN badges bg ON e.id = bg.employee_id AND bg.status = 'ACTIVE'
+          ORDER BY e.last_name ASC
+        `)
+        .all() as any[]
+      
+      return { employees: rows, origen: 'SQLITE_LOCAL' }
+    } catch (dbErr: any) {
+      console.warn('[Sync Asistencia] Error leyendo SQLite local:', dbErr.message)
+    }
   }
 
-  const asisDb = getAsistenciaDb(dbAsistenciaPath)
+  throw new Error('No se pudo establecer conexión con el Sistema de Asistencia (API en la nube ni base de datos local disponible).')
+}
 
-  const employees = asisDb
-    .prepare(`
-      SELECT 
-        e.id,
-        e.employee_code,
-        e.document_type,
-        e.document_number,
-        e.first_name,
-        e.last_name,
-        e.status,
-        e.blood_type,
-        e.emergency_contact_phone,
-        e.hire_date,
-        d.name as department_name,
-        p.name as position_name,
-        b.name as branch_name,
-        bg.badge_code,
-        bg.barcode_value,
-        bg.qr_token_hash
-      FROM employees e
-      LEFT JOIN departments d ON e.department_id = d.id
-      LEFT JOIN positions p ON e.position_id = p.id
-      LEFT JOIN branches b ON e.branch_id = b.id
-      LEFT JOIN badges bg ON e.id = bg.employee_id AND bg.status = 'ACTIVE'
-    `)
-    .all() as any[]
+export async function sincronizarTrabajadoresDesdeAsistencia(): Promise<SyncResult> {
+  const { employees, origen } = await obtenerColaboradoresDesdeAsistencia()
 
   let creados = 0
   let actualizados = 0
@@ -79,14 +121,16 @@ export async function sincronizarTrabajadoresDesdeAsistencia(): Promise<SyncResu
   for (const emp of employees) {
     const dni = String(emp.document_number).trim()
     const codigoFotocheck = emp.employee_code || (emp.badge_code ? String(emp.badge_code).replace('BADGE-', '') : null)
-    const nombres = String(emp.first_name).trim()
-    const apellidos = String(emp.last_name).trim()
-    const cargo = emp.position_name || 'Operario Producción'
-    const area = emp.department_name || 'Producción'
+    const nombres = String(emp.first_name || '').trim()
+    const apellidos = String(emp.last_name || '').trim()
+    const cargo = emp.position_name || 'Operario de Producción'
+    const area = (emp.position_name && emp.position_name.toUpperCase().includes('TROQUELADO'))
+      ? 'Troquelado de Anillas'
+      : (emp.department_name || 'Producción')
     const estado = (emp.status || 'ACTIVE').toUpperCase() === 'ACTIVE' ? 'activo' : 'inactivo'
     const grupoSanguineo = emp.blood_type || 'O+'
     const contactoEmergencia = emp.emergency_contact_phone || '+51 911111111'
-    const plantaPrincipal = emp.branch_name || 'PECEPE S.A.C.'
+    const plantaPrincipal = emp.branch_name || 'DALUPEZMAR Planta Principal'
 
     const existente = await prisma.trabajador.findUnique({
       where: { dni },
@@ -109,6 +153,7 @@ export async function sincronizarTrabajadoresDesdeAsistencia(): Promise<SyncResu
         },
       })
       creados++
+      if (estado === 'inactivo') inactivados++
       detalles.push({
         dni,
         codigoFotocheck,
@@ -121,7 +166,7 @@ export async function sincronizarTrabajadoresDesdeAsistencia(): Promise<SyncResu
       let huboCambios = false
       const dataUpdate: any = {}
 
-      if (existente.codigoFotocheck !== codigoFotocheck) {
+      if (existente.codigoFotocheck !== codigoFotocheck && codigoFotocheck) {
         dataUpdate.codigoFotocheck = codigoFotocheck
         huboCambios = true
       }
@@ -183,6 +228,7 @@ export async function sincronizarTrabajadoresDesdeAsistencia(): Promise<SyncResu
     creados,
     actualizados,
     inactivados,
+    origen,
     detalles,
   }
 }
@@ -239,56 +285,10 @@ export function sincronizarTrabajadorHaciaAsistencia(trabajador: {
           emp.id
         )
 
-      // Actualizar estado del badge
-      const badgeStatus = statusAsistencia === 'ACTIVE' ? 'ACTIVE' : 'REVOKED'
+      const badgeStatus = statusAsistencia === 'ACTIVE' ? 'ACTIVE' : 'INACTIVE'
       asisDb.prepare('UPDATE badges SET status = ? WHERE employee_id = ?').run(badgeStatus, emp.id)
-    } else {
-      // Obtener el siguiente código correlativo de empleado
-      const lastCode = asisDb.prepare('SELECT employee_code FROM employees ORDER BY id DESC LIMIT 1').get() as any
-      let nextNum = 1050
-      if (lastCode && lastCode.employee_code && lastCode.employee_code.startsWith('DAL-')) {
-        const parsed = parseInt(lastCode.employee_code.replace('DAL-', ''), 10)
-        if (!isNaN(parsed)) nextNum = parsed + 1
-      }
-      const employeeCode = trabajador.codigoFotocheck || `DAL-${nextNum}`
-
-      const insertRes = asisDb
-        .prepare(`
-          INSERT INTO employees (
-            employee_code, document_type, document_number, first_name, last_name,
-            branch_id, department_id, position_id, shift_id, blood_type, emergency_contact_phone,
-            status, hire_date
-          ) VALUES (?, 'DNI', ?, ?, ?, 1, 1, 1, 1, ?, ?, ?, date('now'))
-        `)
-        .run(
-          employeeCode,
-          dni,
-          trabajador.nombres,
-          trabajador.apellidos,
-          trabajador.grupoSanguineo || 'O+',
-          trabajador.contactoEmergencia || '+51 911111111',
-          statusAsistencia
-        )
-
-      const newEmpId = (insertRes as any).lastInsertRowid
-
-      // Crear badge / credencial
-      asisDb
-        .prepare(`
-          INSERT INTO badges (
-            employee_id, badge_code, qr_token_hash, barcode_value, issue_date, status, template_theme
-          ) VALUES (?, ?, ?, ?, date('now'), ?, 'CORPORATE_BLUE')
-        `)
-        .run(
-          newEmpId,
-          `BADGE-${employeeCode}`,
-          `AGY_SEC_QR_${employeeCode}_${dni}`,
-          dni,
-          statusAsistencia === 'ACTIVE' ? 'ACTIVE' : 'REVOKED'
-        )
     }
-  } catch (err) {
-    console.warn('Advertencia al sincronizar hacia asistencia.db:', err)
+  } catch (err: any) {
+    console.warn('Nota al sincronizar hacia base de datos local:', err.message)
   }
 }
-

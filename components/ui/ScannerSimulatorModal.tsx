@@ -275,11 +275,19 @@ export default function OpticalScannerModal({
       )
     }
 
+    const isInactive = matchedWorker && (matchedWorker.estado === 'inactivo' || matchedWorker.estado === 'BAJA' || matchedWorker.estado === 'INACTIVE')
+
     setScannedResult({
       code: cleanedCode,
       worker: matchedWorker,
+      isInactive: !!isInactive,
       timestamp: Date.now(),
     })
+
+    if (isInactive) {
+      stopCamera()
+      return
+    }
 
     // Retardo breve para feedback visual y ejecutar onScan
     setTimeout(() => {
@@ -401,30 +409,69 @@ export default function OpticalScannerModal({
             </div>
           )}
 
-          {/* Feedback de Coincidencia Exitosa */}
+          {/* Feedback de Coincidencia Exitosa o Rechazo por Inactividad */}
           {scannedResult && (
-            <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in zoom-in-95 duration-200">
-              <div className="w-16 h-16 rounded-3xl bg-emerald-500/20 border-2 border-emerald-400 text-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-500/30 mb-3">
-                <CheckCircle2 size={36} />
-              </div>
-              <h4 className="text-base font-black text-white">¡Fotocheck Identificado!</h4>
-              <p className="text-sm font-bold text-emerald-400 font-mono mt-0.5">
-                {scannedResult.code}
-              </p>
-              {scannedResult.worker ? (
-                <div className="mt-2.5 p-3 rounded-2xl bg-slate-800 border border-slate-700 text-left w-full max-w-xs space-y-1">
-                  <p className="text-xs font-black text-white">
-                    {scannedResult.worker.apellidos}, {scannedResult.worker.nombres}
+            <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in zoom-in-95 duration-200">
+              {scannedResult.isInactive ? (
+                <>
+                  <div className="w-16 h-16 rounded-3xl bg-red-500/20 border-2 border-red-500 text-red-400 flex items-center justify-center shadow-lg shadow-red-500/40 mb-3 animate-bounce">
+                    <AlertCircle size={36} />
+                  </div>
+                  <h4 className="text-base font-black text-red-400">⛔ TRABAJADOR INACTIVO / DADO DE BAJA</h4>
+                  <p className="text-xs font-bold text-red-300 font-mono mt-0.5">
+                    {scannedResult.code}
                   </p>
-                  <p className="text-[11px] text-cyan-300 font-medium">
-                    {scannedResult.worker.cargo || 'Operario de Producción'}
+                  {scannedResult.worker && (
+                    <div className="mt-2.5 p-3.5 rounded-2xl bg-red-950/50 border border-red-800 text-left w-full max-w-xs space-y-1">
+                      <p className="text-xs font-black text-white">
+                        {scannedResult.worker.apellidos}, {scannedResult.worker.nombres}
+                      </p>
+                      <p className="text-[11px] text-red-300 font-medium">
+                        Puesto: {scannedResult.worker.cargo || 'Operario'}
+                      </p>
+                      <p className="text-[10px] text-slate-300 font-bold">
+                        Estado: <span className="text-red-400 font-extrabold uppercase">INACTIVO / CESADO</span>
+                      </p>
+                    </div>
+                  )}
+                  <p className="text-xs font-black text-red-400 mt-2 bg-red-950/80 px-3 py-1.5 rounded-xl border border-red-700">
+                    ❌ ASIGNACIÓN DENEGADA: No se puede entregar EPP
                   </p>
-                  <p className="text-[10px] text-slate-400">
-                    Área: <span className="text-slate-300 font-semibold">{scannedResult.worker.area}</span>
-                  </p>
-                </div>
+                  <button
+                    onClick={() => {
+                      setScannedResult(null)
+                      startCamera()
+                    }}
+                    className="mt-3 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition border border-slate-600"
+                  >
+                    Escanear Otro Colaborador
+                  </button>
+                </>
               ) : (
-                <p className="text-xs text-slate-400 mt-2">Cargando datos del colaborador...</p>
+                <>
+                  <div className="w-16 h-16 rounded-3xl bg-emerald-500/20 border-2 border-emerald-400 text-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-500/30 mb-3">
+                    <CheckCircle2 size={36} />
+                  </div>
+                  <h4 className="text-base font-black text-white">¡Fotocheck Identificado!</h4>
+                  <p className="text-sm font-bold text-emerald-400 font-mono mt-0.5">
+                    {scannedResult.code}
+                  </p>
+                  {scannedResult.worker ? (
+                    <div className="mt-2.5 p-3 rounded-2xl bg-slate-800 border border-slate-700 text-left w-full max-w-xs space-y-1">
+                      <p className="text-xs font-black text-white">
+                        {scannedResult.worker.apellidos}, {scannedResult.worker.nombres}
+                      </p>
+                      <p className="text-[11px] text-cyan-300 font-medium">
+                        {scannedResult.worker.cargo || 'Operario de Producción'}
+                      </p>
+                      <p className="text-[10px] text-slate-400">
+                        Área: <span className="text-slate-300 font-semibold">{scannedResult.worker.area}</span>
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 mt-2">Cargando datos del colaborador...</p>
+                  )}
+                </>
               )}
             </div>
           )}

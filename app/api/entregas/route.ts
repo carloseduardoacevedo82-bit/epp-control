@@ -52,6 +52,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'El trabajador no existe en el sistema' }, { status: 404 })
     }
 
+    if (trabajador.estado === 'inactivo') {
+      return NextResponse.json(
+        {
+          error: `⛔ TRABAJADOR INACTIVO / DADO DE BAJA (${trabajador.apellidos}, ${trabajador.nombres} - DNI: ${trabajador.dni}). Entrega de EPP denegada: El personal se encuentra cesado o inactivo.`,
+        },
+        { status: 403 }
+      )
+    }
+
     // Crear entrega + detalles en transacción
     const entrega = await prisma.$transaction(async (tx) => {
       const nuevaEntrega = await tx.entrega.create({

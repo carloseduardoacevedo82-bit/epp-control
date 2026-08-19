@@ -454,6 +454,10 @@ function NuevaEntregaContent() {
                   <div
                     key={t.id}
                     onClick={() => {
+                      if (t.estado === 'inactivo') {
+                        alert(`⛔ TRABAJADOR INACTIVO / DADO DE BAJA (${t.apellidos}, ${t.nombres} - DNI: ${t.dni}).\n\nNo se puede registrar entregas de EPP a colaboradores cesados o inactivos.`)
+                        return
+                      }
                       setTrabajadorSeleccionado(t)
                       setStep(2)
                     }}
@@ -937,6 +941,10 @@ function NuevaEntregaContent() {
               `${t.apellidos} ${t.nombres}`.toLowerCase().includes(code.toLowerCase())
           )
           if (match) {
+            if (match.estado === 'inactivo') {
+              alert(`⛔ TRABAJADOR INACTIVO / DADO DE BAJA (${match.apellidos}, ${match.nombres} - DNI: ${match.dni}).\n\nNo se puede asignar ni entregar EPP a un colaborador cesado o inactivo.`)
+              return
+            }
             setTrabajadorSeleccionado(match)
             setStep(2)
           }
