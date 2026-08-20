@@ -35,6 +35,82 @@ import { descargarPlantillaInventario } from '@/lib/excelTemplate'
 
 type ModuloActivo = 'todos' | 'calzado' | 'ropa' | 'accesorios'
 
+export const DESCRIPCIONES_POR_CATEGORIA: Record<string, Array<{ nombre: string; vidaUtil: number; costoAprox: number }>> = {
+  'Protección Cabeza': [
+    { nombre: 'Casco de seguridad Tipo 1 Clase E', vidaUtil: 365, costoAprox: 35.0 },
+    { nombre: 'Casco dieléctrico blanco con barbiquejo', vidaUtil: 365, costoAprox: 45.0 },
+    { nombre: 'Toca fantasma', vidaUtil: 180, costoAprox: 15.0 },
+    { nombre: 'Gorro con solapa para sol / legionario', vidaUtil: 180, costoAprox: 13.0 },
+    { nombre: 'Vincha para cabello', vidaUtil: 180, costoAprox: 5.0 },
+    { nombre: 'Pasamontañas térmico', vidaUtil: 365, costoAprox: 18.0 },
+    { nombre: 'Barbiquejo de 3 puntos con mentonera', vidaUtil: 180, costoAprox: 8.5 },
+  ],
+  'Protección Visual': [
+    { nombre: 'Lentes de seguridad transparentes anti-impacto', vidaUtil: 180, costoAprox: 18.0 },
+    { nombre: 'Lentes de seguridad oscuros con protección UV', vidaUtil: 180, costoAprox: 18.0 },
+    { nombre: 'Lentes antiempañantes de seguridad', vidaUtil: 180, costoAprox: 25.0 },
+    { nombre: 'Protector facial transparente con cabezal', vidaUtil: 180, costoAprox: 40.0 },
+    { nombre: 'Sobrelentes de seguridad para lentes de medida', vidaUtil: 180, costoAprox: 22.0 },
+  ],
+  'Protección Auditiva': [
+    { nombre: 'Tapones auditivos de silicona reutilizables', vidaUtil: 30, costoAprox: 2.0 },
+    { nombre: 'Tapones auditivos desechables de espuma', vidaUtil: 15, costoAprox: 1.5 },
+    { nombre: 'Orejeras de seguridad tipo copa para casco', vidaUtil: 365, costoAprox: 48.0 },
+    { nombre: 'Orejeras de diadema ajustable', vidaUtil: 365, costoAprox: 42.0 },
+  ],
+  'Protección Manos': [
+    { nombre: 'Guantes de lana con puntos de PVC', vidaUtil: 90, costoAprox: 15.0 },
+    { nombre: 'Guantes de alta temperatura naranjados', vidaUtil: 90, costoAprox: 20.0 },
+    { nombre: 'Guantes de corte nivel 5 anticorte', vidaUtil: 90, costoAprox: 22.0 },
+    { nombre: 'Guantes térmicos para frío', vidaUtil: 180, costoAprox: 28.0 },
+    { nombre: 'Guantes de nitrilo resistente a químicos', vidaUtil: 60, costoAprox: 12.0 },
+    { nombre: 'Guantes de badana para operador', vidaUtil: 90, costoAprox: 16.5 },
+    { nombre: 'Guantes de cuero reforzado para soldador', vidaUtil: 180, costoAprox: 32.0 },
+  ],
+  'Calzado': [
+    { nombre: 'Botas caña largas de goma punta de acero', vidaUtil: 180, costoAprox: 55.0 },
+    { nombre: 'Botas de seguridad dieléctricas con punta composite', vidaUtil: 365, costoAprox: 70.0 },
+    { nombre: 'Botines de seguridad de cuero punta de acero', vidaUtil: 365, costoAprox: 95.0 },
+    { nombre: 'Botas térmicas antideslizantes para cámara', vidaUtil: 365, costoAprox: 90.0 },
+    { nombre: 'Zapatos de seguridad industrial caña baja', vidaUtil: 365, costoAprox: 65.0 },
+  ],
+  'Protección Respiratoria': [
+    { nombre: 'Respirador semimascarilla de silicona doble vía', vidaUtil: 90, costoAprox: 25.0 },
+    { nombre: 'Filtros para partículas y polvo P100', vidaUtil: 60, costoAprox: 35.0 },
+    { nombre: 'Cartuchos para vapores orgánicos y gases ácidos', vidaUtil: 60, costoAprox: 45.0 },
+    { nombre: 'Mascarilla descartable N95 / KN95', vidaUtil: 15, costoAprox: 4.5 },
+  ],
+  'Protección Alturas': [
+    { nombre: 'Arnés de seguridad de cuerpo entero 4 anillos', vidaUtil: 730, costoAprox: 55.0 },
+    { nombre: 'Línea de vida con absorbedor de impacto doble gancho', vidaUtil: 730, costoAprox: 75.0 },
+    { nombre: 'Línea de posicionamiento regulable', vidaUtil: 730, costoAprox: 45.0 },
+    { nombre: 'Conector de anclaje tipo faja (Tie-off)', vidaUtil: 730, costoAprox: 30.0 },
+  ],
+  'Protección Climática': [
+    { nombre: 'Poncho para lluvia impermeable con capucha', vidaUtil: 365, costoAprox: 32.0 },
+    { nombre: 'Casaca cortaviento impermeable reflectiva', vidaUtil: 365, costoAprox: 55.0 },
+    { nombre: 'Capotín impermeable de PVC pesado', vidaUtil: 365, costoAprox: 40.0 },
+  ],
+  'Uniforme': [
+    { nombre: 'Polo manga corta algodón con cuello camisero', vidaUtil: 365, costoAprox: 25.0 },
+    { nombre: 'Polo manga larga con cintas reflectivas', vidaUtil: 365, costoAprox: 28.0 },
+    { nombre: 'Suéter manga larga cuello redondo', vidaUtil: 180, costoAprox: 30.0 },
+    { nombre: 'Pantalón largo drill con cinta reflectiva', vidaUtil: 180, costoAprox: 30.0 },
+    { nombre: 'Pantalón térmico impermeable para congelados', vidaUtil: 365, costoAprox: 65.0 },
+    { nombre: 'Chaqueta ignífuga antiestática', vidaUtil: 365, costoAprox: 60.0 },
+    { nombre: 'Casaca térmica para cámara de refrigeración', vidaUtil: 365, costoAprox: 85.0 },
+    { nombre: 'Chaleco térmico reflectivo tipo brigadista', vidaUtil: 365, costoAprox: 45.0 },
+    { nombre: 'Medias gruesas de trabajo', vidaUtil: 180, costoAprox: 10.0 },
+    { nombre: 'Medias térmicas para baja temperatura', vidaUtil: 180, costoAprox: 15.0 },
+  ],
+  'Herramientas / Accesorios': [
+    { nombre: 'Cinturón porta herramientas de cuero reforzado', vidaUtil: 730, costoAprox: 30.0 },
+    { nombre: 'Linterna frontal LED recargable para casco', vidaUtil: 365, costoAprox: 25.0 },
+    { nombre: 'Silbato de emergencia con cordón', vidaUtil: 730, costoAprox: 5.0 },
+    { nombre: 'Candado de bloqueo y etiquetado LOTO', vidaUtil: 730, costoAprox: 35.0 },
+  ],
+}
+
 const emptyForm = {
   codigo: '',
   nombre: '',
@@ -1039,45 +1115,24 @@ export default function CatalogoPage() {
 
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div className="col-span-2 sm:col-span-1">
-                <label className="label">Código SKU *</label>
-                <input
-                  className="input-field font-mono font-bold"
-                  placeholder="Ej. CAL-BOT-42"
-                  value={form.codigo}
-                  onChange={e => setForm({ ...form, codigo: e.target.value.toUpperCase() })}
-                />
-              </div>
-              <div className="col-span-2 sm:col-span-1">
-                <label className="label">Marca / Proveedor</label>
-                <input
-                  className="input-field"
-                  placeholder="Ej. 3M / MSA / Nazca / Delta Plus"
-                  value={form.marcaFabricante}
-                  onChange={e => setForm({ ...form, marcaFabricante: e.target.value })}
-                />
-              </div>
-              <div className="col-span-2">
-                <label className="label">Descripción Completa del EPP *</label>
-                <input
-                  className="input-field"
-                  placeholder="Ej. Botas de Seguridad Punta de Acero Caña Alta"
-                  value={form.nombre}
-                  onChange={e => setForm({ ...form, nombre: e.target.value })}
-                />
-              </div>
-
-              <div>
-                <label className="label">Categoría *</label>
+                <label className="label">Categoría del EPP *</label>
                 <select
-                  className="input-field font-bold"
+                  className="input-field font-bold text-blue-700 dark:text-cyan-400 bg-blue-50/50 dark:bg-slate-800"
                   value={form.categoria}
                   onChange={e => {
                     const nuevaCat = e.target.value
                     const opciones = getOpcionesTallas(nuevaCat)
+                    const sugerencias = DESCRIPCIONES_POR_CATEGORIA[nuevaCat] || []
+                    const primeraSugerencia = sugerencias[0]
+
                     setForm(f => ({
                       ...f,
                       categoria: nuevaCat,
                       talla: opciones[0] || 'Talla Única',
+                      // Si no tenía nombre o cambia de categoría, sugerir el primer artículo de esa categoría
+                      nombre: f.nombre ? f.nombre : primeraSugerencia ? primeraSugerencia.nombre : '',
+                      costoUnitario: (!f.costoUnitario || f.costoUnitario === '0') && primeraSugerencia ? String(primeraSugerencia.costoAprox) : f.costoUnitario,
+                      vidaUtilDias: primeraSugerencia ? String(primeraSugerencia.vidaUtil) : f.vidaUtilDias,
                     }))
                   }}
                 >
@@ -1087,6 +1142,78 @@ export default function CatalogoPage() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div className="col-span-2 sm:col-span-1">
+                <label className="label">Código SKU *</label>
+                <input
+                  className="input-field font-mono font-bold"
+                  placeholder="Ej. CAL-BOT-42"
+                  value={form.codigo}
+                  onChange={e => setForm({ ...form, codigo: e.target.value.toUpperCase() })}
+                />
+              </div>
+
+              {/* DESCRIPCIÓN COMPLETA DEL EPP CON SELECTOR AUTOMÁTICO SEGÚN CATEGORÍA */}
+              <div className="col-span-2 space-y-1.5">
+                <label className="label flex items-center justify-between">
+                  <span>Descripción Completa del EPP *</span>
+                  <span className="text-[10px] text-blue-600 dark:text-cyan-400 font-normal">
+                    ✨ Selecciona de la lista o escribe tu propia descripción
+                  </span>
+                </label>
+
+                {/* Lista Desplegable Automática de la Categoría Seleccionada */}
+                <select
+                  className="input-field font-bold text-xs bg-slate-50 dark:bg-slate-800/90 border-blue-300 dark:border-blue-700/60 text-slate-900 dark:text-slate-100"
+                  value=""
+                  onChange={e => {
+                    const descElegida = e.target.value
+                    if (!descElegida) return
+                    const itemData = (DESCRIPCIONES_POR_CATEGORIA[form.categoria] || []).find(d => d.nombre === descElegida)
+                    setForm(f => ({
+                      ...f,
+                      nombre: descElegida,
+                      costoUnitario: itemData ? String(itemData.costoAprox) : f.costoUnitario,
+                      vidaUtilDias: itemData ? String(itemData.vidaUtil) : f.vidaUtilDias,
+                    }))
+                  }}
+                >
+                  <option value="">
+                    📋 Seleccionar artículo predefinido de [{form.categoria}] ({ (DESCRIPCIONES_POR_CATEGORIA[form.categoria] || []).length } opciones)...
+                  </option>
+                  {(DESCRIPCIONES_POR_CATEGORIA[form.categoria] || []).map(item => (
+                    <option key={item.nombre} value={item.nombre}>
+                      {item.nombre} • (Vida útil: {item.vidaUtil}d • Ref: S/ {item.costoAprox.toFixed(2)})
+                    </option>
+                  ))}
+                </select>
+
+                {/* Campo de Texto Editable / Personalizable con Autocompletado */}
+                <div className="relative">
+                  <input
+                    list="lista-descripciones-epp"
+                    className="input-field font-semibold"
+                    placeholder="Ej. Botas de Seguridad Punta de Acero Caña Alta..."
+                    value={form.nombre}
+                    onChange={e => setForm({ ...form, nombre: e.target.value })}
+                  />
+                  <datalist id="lista-descripciones-epp">
+                    {(DESCRIPCIONES_POR_CATEGORIA[form.categoria] || []).map(item => (
+                      <option key={item.nombre} value={item.nombre} />
+                    ))}
+                  </datalist>
+                </div>
+              </div>
+
+              <div className="col-span-2 sm:col-span-1">
+                <label className="label">Marca / Proveedor</label>
+                <input
+                  className="input-field"
+                  placeholder="Ej. 3M / MSA / Nazca / Delta Plus"
+                  value={form.marcaFabricante}
+                  onChange={e => setForm({ ...form, marcaFabricante: e.target.value })}
+                />
               </div>
 
               {/* Selector de Tallas Inteligente */}
