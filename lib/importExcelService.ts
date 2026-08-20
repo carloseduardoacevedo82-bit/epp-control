@@ -17,13 +17,13 @@ export async function validarArchivoExcel(
   }
 
   const wb = XLSX.read(buffer, { type: 'array' })
-  const primeraHojaNombre = wb.SheetNames[0]
+  let hojaNombre = wb.SheetNames.find(n => n.includes('Carga') || n.includes('Inventario') || n.includes('Plantilla')) || wb.SheetNames[0]
 
-  if (!primeraHojaNombre) {
+  if (!hojaNombre) {
     throw new Error('El archivo Excel no contiene hojas de cálculo.')
   }
 
-  const hoja = wb.Sheets[primeraHojaNombre]
+  const hoja = wb.Sheets[hojaNombre]
   const jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(hoja, {
     header: 1,
     defval: '',
