@@ -23,7 +23,7 @@ export const TALLAS_ROPA = [
 ] as const
 
 export const TALLAS_PANTALON = [
-  '28', '30', '32', '34', '36', '38', '40', '42', '44',
+  '28', '30', '32', '34', '36', '38', '40', '42', '44', '46', '48', '50',
   'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'XXXXL',
 ] as const
 

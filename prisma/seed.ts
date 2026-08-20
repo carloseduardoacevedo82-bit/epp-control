@@ -179,7 +179,7 @@ async function main() {
 
   // ─── 89 TRABAJADORES REGISTRADOS ──────────────────────────────────────────
   const trabajadoresData = personalOficial.map((p, idx) => {
-    const tallasPantalon = ['28', '30', '32', '34', '36', '38', '40', '42', '44']
+    const tallasPantalon = ['28', '30', '32', '34', '36', '38', '40', '42', '44', '46', '48', '50']
     const tallasCamisa = ['S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'XXXXL']
     const tallasCalzado = ['35', '36', '37', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47']
 

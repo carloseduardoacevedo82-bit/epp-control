@@ -417,7 +417,7 @@ export default function CatalogoPage() {
 
   const getOpcionesTallas = (cat: string) => {
     if (cat === 'Calzado') return [...TALLAS_CALZADO]
-    if (cat === 'Uniforme') return [...TALLAS_ROPA, '28', '30', '32', '34', '36', '38', '40', '42', '44', 'Talla Única']
+    if (cat === 'Uniforme') return [...TALLAS_ROPA, '28', '30', '32', '34', '36', '38', '40', '42', '44', '46', '48', '50', 'Talla Única']
     return ['Talla Única', 'S', 'M', 'L', 'XL', 'Estándar']
   }
 
@@ -747,7 +747,7 @@ export default function CatalogoPage() {
               modelosRopa.map(mod => {
                 const esPantalon = mod.nombreBase.toLowerCase().includes('pantalón') || mod.nombreBase.toLowerCase().includes('pantalon')
                 const tallasAMostrar = esPantalon
-                  ? ['28', '30', '32', '34', '36', '38', '40', '42', '44', 'S', 'M', 'L', 'XL', 'XXL']
+                  ? ['28', '30', '32', '34', '36', '38', '40', '42', '44', '46', '48', '50', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'XXXXL']
                   : ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'XXXXL', 'Talla Única']
 
                 return (
@@ -1092,7 +1092,7 @@ export default function CatalogoPage() {
               {/* Selector de Tallas Inteligente */}
               <div>
                 <label className="label">
-                  Talla / Medida {form.categoria === 'Calzado' ? '(35-47)' : form.categoria === 'Uniforme' ? '(S-XXXXL / 28-44)' : ''}
+                  Talla / Medida {form.categoria === 'Calzado' ? '(35-47)' : form.categoria === 'Uniforme' ? '(S-XXXXL / 28-50)' : ''}
                 </label>
                 <div className="space-y-1.5">
                   <select
