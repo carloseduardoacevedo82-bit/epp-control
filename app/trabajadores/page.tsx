@@ -26,20 +26,9 @@ import {
   Droplet,
 } from 'lucide-react'
 import type { Trabajador } from '@/lib/types'
+import { AREAS, TALLAS_CALZADO, TALLAS_ROPA, TALLAS_PANTALON } from '@/lib/types'
 import ScannerSimulatorModal from '@/components/ui/ScannerSimulatorModal'
 
-const AREAS = [
-  'Producción',
-  'Operaciones',
-  'SSOMA',
-  'Mantenimiento',
-  'Logística',
-  'Electricidad',
-  'Administración',
-  'RRHH',
-]
-const TALLAS_ROPA = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', '28', '30', '32', '34', '36', '38', '40']
-const TALLAS_CALZADO = ['35', '36', '37', '38', '39', '40', '41', '42', '43', '44', '45']
 const GRUPOS_SANGUINEOS = ['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-']
 
 const emptyForm = {
@@ -48,7 +37,7 @@ const emptyForm = {
   nombres: '',
   apellidos: '',
   cargo: '',
-  area: AREAS[0],
+  area: AREAS[0] as string,
   grupoSanguineo: 'O+',
   contactoEmergencia: '',
   plantaPrincipal: 'PECEPE S.A.C.',
@@ -549,7 +538,7 @@ export default function TrabajadoresPage() {
                   onChange={e => setForm(f => ({ ...f, tallaPantalon: e.target.value }))}
                 >
                   <option value="">Seleccione talla...</option>
-                  {TALLAS_ROPA.map(t => (
+                  {TALLAS_PANTALON.map(t => (
                     <option key={t} value={t}>
                       {t}
                     </option>

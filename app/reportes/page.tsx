@@ -21,32 +21,9 @@ import {
   History,
 } from 'lucide-react'
 import type { FilaReporte, Trabajador, LogImportacionRegistro } from '@/lib/types'
+import { AREAS, CATEGORIAS_EPP as CATEGORIAS } from '@/lib/types'
 import { format } from 'date-fns'
 import { useRole } from '@/components/auth/RoleContext'
-
-const AREAS = [
-  'Producción',
-  'Operaciones',
-  'SSOMA',
-  'Mantenimiento',
-  'Logística',
-  'Electricidad',
-  'Administración',
-  'RRHH',
-]
-
-const CATEGORIAS = [
-  'Protección Cabeza',
-  'Protección Visual',
-  'Protección Auditiva',
-  'Protección Manos',
-  'Calzado',
-  'Protección Respiratoria',
-  'Protección Alturas',
-  'Protección Climática',
-  'Uniforme',
-  'Herramientas / Accesorios',
-]
 
 interface CierreMensual {
   mesClave: string

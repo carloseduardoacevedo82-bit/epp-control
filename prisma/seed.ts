@@ -179,16 +179,16 @@ async function main() {
 
   // ─── 89 TRABAJADORES REGISTRADOS ──────────────────────────────────────────
   const trabajadoresData = personalOficial.map((p, idx) => {
-    const tallasPantalon = ['28', '30', '32', '34', '36', '38']
-    const tallasCamisa = ['S', 'M', 'L', 'XL']
-    const tallasCalzado = ['36', '37', '38', '39', '40', '41', '42', '43']
+    const tallasPantalon = ['28', '30', '32', '34', '36', '38', '40', '42', '44']
+    const tallasCamisa = ['S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'XXXXL']
+    const tallasCalzado = ['35', '36', '37', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47']
 
     return {
       dni: p.dni,
       nombres: p.nombres,
       apellidos: p.apellidos,
       cargo: p.cargo,
-      area: p.area,
+      area: idx % 10 === 0 ? 'Área Externa' : p.area,
       fechaIngreso: new Date('2024-01-15'),
       tallaPantalon: tallasPantalon[idx % tallasPantalon.length],
       tallaCamisa: tallasCamisa[idx % tallasCamisa.length],
@@ -205,44 +205,44 @@ async function main() {
   const articulos = await prisma.articuloEPP.createManyAndReturn({
     data: [
       // Protección Cabeza
-      { codigo: 'EPP-001', nombre: 'Casco de seguridad', categoria: 'Protección Cabeza', talla: 'Único', costoUnitario: 35.00, vidaUtilDias: 365, stockActual: 100, stockMinimo: 15 },
-      { codigo: 'EPP-002', nombre: 'Toca fantasma', categoria: 'Protección Cabeza', talla: 'Único', costoUnitario: 15.00, vidaUtilDias: 180, stockActual: 200, stockMinimo: 20 },
-      { codigo: 'EPP-003', nombre: 'Gorro con solapa para sol', categoria: 'Protección Cabeza', talla: 'Único', costoUnitario: 13.00, vidaUtilDias: 180, stockActual: 100, stockMinimo: 15 },
-      { codigo: 'EPP-004', nombre: 'Vincha para cabello', categoria: 'Protección Cabeza', talla: 'Único', costoUnitario: 5.00, vidaUtilDias: 180, stockActual: 200, stockMinimo: 30 },
-      { codigo: 'EPP-005', nombre: 'Pasamontañas térmico', categoria: 'Protección Cabeza', talla: 'Único', costoUnitario: 18.00, vidaUtilDias: 365, stockActual: 80, stockMinimo: 10 },
+      { codigo: 'EPP-001', nombre: 'Casco de seguridad', categoria: 'Protección Cabeza', talla: 'Talla Única', costoUnitario: 35.00, vidaUtilDias: 365, stockActual: 100, stockMinimo: 15 },
+      { codigo: 'EPP-002', nombre: 'Toca fantasma', categoria: 'Protección Cabeza', talla: 'Talla Única', costoUnitario: 15.00, vidaUtilDias: 180, stockActual: 200, stockMinimo: 20 },
+      { codigo: 'EPP-003', nombre: 'Gorro con solapa para sol', categoria: 'Protección Cabeza', talla: 'Talla Única', costoUnitario: 13.00, vidaUtilDias: 180, stockActual: 100, stockMinimo: 15 },
+      { codigo: 'EPP-004', nombre: 'Vincha para cabello', categoria: 'Protección Cabeza', talla: 'Talla Única', costoUnitario: 5.00, vidaUtilDias: 180, stockActual: 200, stockMinimo: 30 },
+      { codigo: 'EPP-005', nombre: 'Pasamontañas térmico', categoria: 'Protección Cabeza', talla: 'Talla Única', costoUnitario: 18.00, vidaUtilDias: 365, stockActual: 80, stockMinimo: 10 },
       // Protección Visual
-      { codigo: 'EPP-006', nombre: 'Lentes de seguridad', categoria: 'Protección Visual', talla: 'Único', costoUnitario: 18.00, vidaUtilDias: 180, stockActual: 150, stockMinimo: 20 },
-      { codigo: 'EPP-007', nombre: 'Protector facial', categoria: 'Protección Visual', talla: 'Único', costoUnitario: 40.00, vidaUtilDias: 180, stockActual: 50, stockMinimo: 10 },
-      { codigo: 'EPP-008', nombre: 'Lentes antiempañantes de seguridad', categoria: 'Protección Visual', talla: 'Único', costoUnitario: 25.00, vidaUtilDias: 180, stockActual: 100, stockMinimo: 15 },
+      { codigo: 'EPP-006', nombre: 'Lentes de seguridad', categoria: 'Protección Visual', talla: 'Talla Única', costoUnitario: 18.00, vidaUtilDias: 180, stockActual: 150, stockMinimo: 20 },
+      { codigo: 'EPP-007', nombre: 'Protector facial', categoria: 'Protección Visual', talla: 'Talla Única', costoUnitario: 40.00, vidaUtilDias: 180, stockActual: 50, stockMinimo: 10 },
+      { codigo: 'EPP-008', nombre: 'Lentes antiempañantes de seguridad', categoria: 'Protección Visual', talla: 'Talla Única', costoUnitario: 25.00, vidaUtilDias: 180, stockActual: 100, stockMinimo: 15 },
       // Protección Auditiva
-      { codigo: 'EPP-009', nombre: 'Tapones auditivos', categoria: 'Protección Auditiva', talla: 'Único', costoUnitario: 2.00, vidaUtilDias: 30, stockActual: 500, stockMinimo: 80 },
+      { codigo: 'EPP-009', nombre: 'Tapones auditivos', categoria: 'Protección Auditiva', talla: 'Talla Única', costoUnitario: 2.00, vidaUtilDias: 30, stockActual: 500, stockMinimo: 80 },
       // Protección Manos
-      { codigo: 'EPP-010', nombre: 'Guantes de lana', categoria: 'Protección Manos', talla: 'Único', costoUnitario: 15.00, vidaUtilDias: 90, stockActual: 150, stockMinimo: 25 },
-      { codigo: 'EPP-011', nombre: 'Guantes de alta temperatura naranjados', categoria: 'Protección Manos', talla: 'Único', costoUnitario: 20.00, vidaUtilDias: 90, stockActual: 100, stockMinimo: 15 },
-      { codigo: 'EPP-012', nombre: 'Guantes de corte', categoria: 'Protección Manos', talla: 'Único', costoUnitario: 22.00, vidaUtilDias: 90, stockActual: 120, stockMinimo: 20 },
-      { codigo: 'EPP-013', nombre: 'Guantes térmicos para frío', categoria: 'Protección Manos', talla: 'Único', costoUnitario: 28.00, vidaUtilDias: 180, stockActual: 100, stockMinimo: 15 },
-      // Calzado
-      { codigo: 'EPP-014', nombre: 'Botas caña largas de goma punta de acero', categoria: 'Calzado', talla: 'Único', costoUnitario: 55.00, vidaUtilDias: 180, stockActual: 150, stockMinimo: 15 },
-      { codigo: 'EPP-015', nombre: 'Botas de seguridad dieléctricas', categoria: 'Calzado', talla: 'Único', costoUnitario: 70.00, vidaUtilDias: 365, stockActual: 80, stockMinimo: 10 },
-      { codigo: 'EPP-016', nombre: 'Botas térmicas antideslizantes', categoria: 'Calzado', talla: 'Único', costoUnitario: 90.00, vidaUtilDias: 365, stockActual: 60, stockMinimo: 10 },
+      { codigo: 'EPP-010', nombre: 'Guantes de lana', categoria: 'Protección Manos', talla: 'Talla Única', costoUnitario: 15.00, vidaUtilDias: 90, stockActual: 150, stockMinimo: 25 },
+      { codigo: 'EPP-011', nombre: 'Guantes de alta temperatura naranjados', categoria: 'Protección Manos', talla: 'Talla Única', costoUnitario: 20.00, vidaUtilDias: 90, stockActual: 100, stockMinimo: 15 },
+      { codigo: 'EPP-012', nombre: 'Guantes de corte', categoria: 'Protección Manos', talla: 'Talla Única', costoUnitario: 22.00, vidaUtilDias: 90, stockActual: 120, stockMinimo: 20 },
+      { codigo: 'EPP-013', nombre: 'Guantes térmicos para frío', categoria: 'Protección Manos', talla: 'Talla Única', costoUnitario: 28.00, vidaUtilDias: 180, stockActual: 100, stockMinimo: 15 },
+      // Calzado (35-47)
+      { codigo: 'EPP-014', nombre: 'Botas caña largas de goma punta de acero T41', categoria: 'Calzado', talla: '41', costoUnitario: 55.00, vidaUtilDias: 180, stockActual: 150, stockMinimo: 15 },
+      { codigo: 'EPP-015', nombre: 'Botas de seguridad dieléctricas T42', categoria: 'Calzado', talla: '42', costoUnitario: 70.00, vidaUtilDias: 365, stockActual: 80, stockMinimo: 10 },
+      { codigo: 'EPP-016', nombre: 'Botas térmicas antideslizantes T43', categoria: 'Calzado', talla: '43', costoUnitario: 90.00, vidaUtilDias: 365, stockActual: 60, stockMinimo: 10 },
       // Protección Respiratoria
-      { codigo: 'EPP-017', nombre: 'Respirador semimascarilla', categoria: 'Protección Respiratoria', talla: 'Único', costoUnitario: 25.00, vidaUtilDias: 90, stockActual: 100, stockMinimo: 20 },
+      { codigo: 'EPP-017', nombre: 'Respirador semimascarilla', categoria: 'Protección Respiratoria', talla: 'Talla Única', costoUnitario: 25.00, vidaUtilDias: 90, stockActual: 100, stockMinimo: 20 },
       // Protección Alturas
-      { codigo: 'EPP-018', nombre: 'Arnés de seguridad', categoria: 'Protección Alturas', talla: 'Único', costoUnitario: 55.00, vidaUtilDias: 730, stockActual: 40, stockMinimo: 8 },
-      // Uniforme
-      { codigo: 'UNI-001', nombre: 'Polo', categoria: 'Uniforme', talla: 'M', costoUnitario: 25.00, vidaUtilDias: 365, stockActual: 200, stockMinimo: 30 },
-      { codigo: 'UNI-002', nombre: 'Suéter manga larga', categoria: 'Uniforme', talla: 'M', costoUnitario: 30.00, vidaUtilDias: 180, stockActual: 250, stockMinimo: 25 },
-      { codigo: 'UNI-003', nombre: 'Pantalón largo', categoria: 'Uniforme', talla: '34', costoUnitario: 30.00, vidaUtilDias: 180, stockActual: 250, stockMinimo: 25 },
-      { codigo: 'UNI-004', nombre: 'Medias gruesas', categoria: 'Uniforme', talla: 'Único', costoUnitario: 10.00, vidaUtilDias: 180, stockActual: 300, stockMinimo: 40 },
-      { codigo: 'UNI-005', nombre: 'Chaqueta ignífuga', categoria: 'Uniforme', talla: 'M', costoUnitario: 60.00, vidaUtilDias: 365, stockActual: 50, stockMinimo: 10 },
-      { codigo: 'UNI-006', nombre: 'Casaca térmica para cámara de refrigeración', categoria: 'Uniforme', talla: 'M', costoUnitario: 85.00, vidaUtilDias: 365, stockActual: 50, stockMinimo: 10 },
-      { codigo: 'UNI-007', nombre: 'Pantalón térmico impermeable', categoria: 'Uniforme', talla: '34', costoUnitario: 65.00, vidaUtilDias: 365, stockActual: 50, stockMinimo: 10 },
-      { codigo: 'UNI-008', nombre: 'Chaleco térmico', categoria: 'Uniforme', talla: 'M', costoUnitario: 45.00, vidaUtilDias: 365, stockActual: 60, stockMinimo: 10 },
-      { codigo: 'UNI-009', nombre: 'Medias térmicas', categoria: 'Uniforme', talla: 'Único', costoUnitario: 15.00, vidaUtilDias: 180, stockActual: 200, stockMinimo: 30 },
+      { codigo: 'EPP-018', nombre: 'Arnés de seguridad', categoria: 'Protección Alturas', talla: 'Talla Única', costoUnitario: 55.00, vidaUtilDias: 730, stockActual: 40, stockMinimo: 8 },
+      // Uniforme (S - XXXXL y 28-44)
+      { codigo: 'UNI-001', nombre: 'Polo Manga Corta Algodón', categoria: 'Uniforme', talla: 'M', costoUnitario: 25.00, vidaUtilDias: 365, stockActual: 200, stockMinimo: 30 },
+      { codigo: 'UNI-002', nombre: 'Suéter manga larga', categoria: 'Uniforme', talla: 'L', costoUnitario: 30.00, vidaUtilDias: 180, stockActual: 250, stockMinimo: 25 },
+      { codigo: 'UNI-003', nombre: 'Pantalón largo drill', categoria: 'Uniforme', talla: '34', costoUnitario: 30.00, vidaUtilDias: 180, stockActual: 250, stockMinimo: 25 },
+      { codigo: 'UNI-004', nombre: 'Medias gruesas de trabajo', categoria: 'Uniforme', talla: 'Talla Única', costoUnitario: 10.00, vidaUtilDias: 180, stockActual: 300, stockMinimo: 40 },
+      { codigo: 'UNI-005', nombre: 'Chaqueta ignífuga', categoria: 'Uniforme', talla: 'XL', costoUnitario: 60.00, vidaUtilDias: 365, stockActual: 50, stockMinimo: 10 },
+      { codigo: 'UNI-006', nombre: 'Casaca térmica para cámara de refrigeración', categoria: 'Uniforme', talla: 'XXL', costoUnitario: 85.00, vidaUtilDias: 365, stockActual: 50, stockMinimo: 10 },
+      { codigo: 'UNI-007', nombre: 'Pantalón térmico impermeable', categoria: 'Uniforme', talla: '36', costoUnitario: 65.00, vidaUtilDias: 365, stockActual: 50, stockMinimo: 10 },
+      { codigo: 'UNI-008', nombre: 'Chaleco térmico reflectivo', categoria: 'Uniforme', talla: 'XXXL', costoUnitario: 45.00, vidaUtilDias: 365, stockActual: 60, stockMinimo: 10 },
+      { codigo: 'UNI-009', nombre: 'Medias térmicas', categoria: 'Uniforme', talla: 'Talla Única', costoUnitario: 15.00, vidaUtilDias: 180, stockActual: 200, stockMinimo: 30 },
       // Protección Climática
-      { codigo: 'EPP-019', nombre: 'Poncho para lluvia', categoria: 'Protección Climática', talla: 'Único', costoUnitario: 32.00, vidaUtilDias: 365, stockActual: 80, stockMinimo: 15 },
+      { codigo: 'EPP-019', nombre: 'Poncho para lluvia', categoria: 'Protección Climática', talla: 'Talla Única', costoUnitario: 32.00, vidaUtilDias: 365, stockActual: 80, stockMinimo: 15 },
       // Herramientas / Accesorios
-      { codigo: 'EPP-020', nombre: 'Cinturón porta herramientas', categoria: 'Herramientas / Accesorios', talla: 'Único', costoUnitario: 30.00, vidaUtilDias: 730, stockActual: 50, stockMinimo: 10 },
+      { codigo: 'EPP-020', nombre: 'Cinturón porta herramientas', categoria: 'Herramientas / Accesorios', talla: 'Talla Única', costoUnitario: 30.00, vidaUtilDias: 730, stockActual: 50, stockMinimo: 10 },
     ],
   })
 

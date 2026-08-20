@@ -22,6 +22,9 @@ import { useRouter } from 'next/navigation'
 
 const getAreaBadgeStyle = (area?: string) => {
   const a = (area || '').toLowerCase()
+  if (a.includes('extern')) {
+    return 'bg-cyan-50 text-cyan-800 border-cyan-300 dark:bg-cyan-950/40 dark:text-cyan-300 dark:border-cyan-800/50'
+  }
   if (a.includes('prod')) {
     return 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800/40'
   }
@@ -469,7 +472,7 @@ export default function DashboardPage() {
             return (
               <div
                 key={e.id}
-                className="group relative rounded-2xl bg-white dark:bg-slate-850 border border-slate-200/90 dark:border-slate-700/80 hover:border-blue-500/60 dark:hover:border-blue-400/60 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 p-4 flex flex-col justify-between overflow-hidden"
+                className="group relative rounded-2xl bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700/80 hover:border-blue-500/60 dark:hover:border-blue-400/60 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 p-4 flex flex-col justify-between overflow-hidden"
               >
                 {/* Barra superior de acento dinámico */}
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500" />

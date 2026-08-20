@@ -15,6 +15,7 @@ import {
   Package,
 } from 'lucide-react'
 import { format, differenceInDays } from 'date-fns'
+import { AREAS, CATEGORIAS_EPP as CATEGORIAS } from '@/lib/types'
 
 interface DetalleRenovacion {
   id: number
@@ -27,29 +28,6 @@ interface DetalleRenovacion {
     trabajador: { nombres: string; apellidos: string; dni: string; area: string }
   }
 }
-
-const AREAS = [
-  'Producción',
-  'Operaciones',
-  'SSOMA',
-  'Mantenimiento',
-  'Logística',
-  'Electricidad',
-  'Administración',
-  'RRHH',
-]
-const CATEGORIAS = [
-  'Protección Cabeza',
-  'Protección Visual',
-  'Protección Auditiva',
-  'Protección Manos',
-  'Calzado',
-  'Protección Respiratoria',
-  'Protección Alturas',
-  'Protección Climática',
-  'Uniforme',
-  'Herramientas / Accesorios',
-]
 
 function BadgeEstado({ estado }: { estado: string }) {
   if (estado === 'Vencido') {

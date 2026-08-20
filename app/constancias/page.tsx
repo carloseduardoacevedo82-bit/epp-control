@@ -167,7 +167,7 @@ export default function ConstanciasPage() {
       </div>
 
       {/* ── PANEL DE DESCARGA MASIVA MENSUAL PARA CONTROL Y AUDITORÍA ────── */}
-      <div className="card p-5 bg-gradient-to-br from-blue-50/70 via-white to-indigo-50/40 dark:from-slate-800/90 dark:via-slate-850 dark:to-slate-900 border-blue-200 dark:border-slate-700 shadow-sm space-y-4">
+      <div className="card p-5 bg-gradient-to-br from-blue-50/70 via-white to-indigo-50/40 dark:from-slate-800/90 dark:via-slate-800 dark:to-slate-900 border-blue-200 dark:border-slate-700 shadow-sm space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
@@ -395,7 +395,7 @@ export default function ConstanciasPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-slate-900 border border-slate-700 w-full max-w-5xl h-[92vh] sm:h-[88vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
             {/* Barra Superior del Visor */}
-            <div className="px-4 py-3 bg-slate-850 border-b border-slate-800 flex items-center justify-between gap-3 shrink-0">
+            <div className="px-4 py-3 bg-slate-800 border-b border-slate-700 flex items-center justify-between gap-3 shrink-0">
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="p-1.5 rounded-lg bg-blue-600/20 text-blue-400 border border-blue-500/30">
                   <FileText size={16} />

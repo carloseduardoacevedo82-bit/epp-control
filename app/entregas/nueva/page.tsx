@@ -27,6 +27,7 @@ import {
   Save,
 } from 'lucide-react'
 import type { Trabajador, ArticuloEPP, Entrega } from '@/lib/types'
+import { AREAS, TALLAS_CALZADO, TALLAS_ROPA, TALLAS_PANTALON } from '@/lib/types'
 import { format, addDays } from 'date-fns'
 import { es } from 'date-fns/locale'
 import SignaturePadModal from '@/components/ui/SignaturePadModal'
@@ -34,19 +35,6 @@ import ScannerSimulatorModal from '@/components/ui/ScannerSimulatorModal'
 import { generarActaEntregaPDF } from '@/lib/generatePDF'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-
-const AREAS = [
-  'Producción',
-  'Operaciones',
-  'SSOMA',
-  'Mantenimiento',
-  'Logística',
-  'Electricidad',
-  'Administración',
-  'RRHH',
-]
-const TALLAS_ROPA = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', '28', '30', '32', '34', '36', '38', '40']
-const TALLAS_CALZADO = ['35', '36', '37', '38', '39', '40', '41', '42', '43', '44', '45']
 
 type Step = 1 | 2 | 3 | 4
 
@@ -1071,7 +1059,7 @@ function NuevaEntregaContent() {
                   onChange={e => setNuevoTrabajadorForm(f => ({ ...f, tallaPantalon: e.target.value }))}
                 >
                   <option value="">Seleccione talla...</option>
-                  {TALLAS_ROPA.map(t => (
+                  {TALLAS_PANTALON.map(t => (
                     <option key={t} value={t}>
                       {t}
                     </option>

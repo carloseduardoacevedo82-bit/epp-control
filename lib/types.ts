@@ -2,6 +2,44 @@ export type EstadoRenovacion = 'Vigente' | 'Por Vencer' | 'Vencido'
 export type EstadoTrabajador = 'activo' | 'inactivo'
 export type RolUsuario = 'ADMIN' | 'SUPERVISOR'
 
+export const AREAS = [
+  'Producción',
+  'Operaciones',
+  'SSOMA',
+  'Mantenimiento',
+  'Logística',
+  'Electricidad',
+  'Administración',
+  'RRHH',
+  'Área Externa',
+] as const
+
+export const TALLAS_CALZADO = [
+  '35', '36', '37', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47',
+] as const
+
+export const TALLAS_ROPA = [
+  'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'XXXXL',
+] as const
+
+export const TALLAS_PANTALON = [
+  '28', '30', '32', '34', '36', '38', '40', '42', '44',
+  'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'XXXXL',
+] as const
+
+export const CATEGORIAS_EPP = [
+  'Protección Cabeza',
+  'Protección Visual',
+  'Protección Auditiva',
+  'Protección Manos',
+  'Calzado',
+  'Protección Respiratoria',
+  'Protección Alturas',
+  'Protección Climática',
+  'Uniforme',
+  'Herramientas / Accesorios',
+] as const
+
 export interface UsuarioSession {
   id: number
   email: string
