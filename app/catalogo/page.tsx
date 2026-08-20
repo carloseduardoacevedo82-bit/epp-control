@@ -111,6 +111,42 @@ export const DESCRIPCIONES_POR_CATEGORIA: Record<string, Array<{ nombre: string;
   ],
 }
 
+export function generarSkuSugerido(categoria: string, nombre: string, talla?: string): string {
+  let prefijo = 'EPP'
+  if (categoria === 'Calzado') prefijo = 'CAL'
+  else if (categoria === 'Uniforme') prefijo = 'UNI'
+  else if (categoria === 'Protección Cabeza') prefijo = 'EPP-CAB'
+  else if (categoria === 'Protección Visual') prefijo = 'EPP-VIS'
+  else if (categoria === 'Protección Auditiva') prefijo = 'EPP-AUD'
+  else if (categoria === 'Protección Manos') prefijo = 'EPP-MAN'
+  else if (categoria === 'Protección Respiratoria') prefijo = 'EPP-RES'
+  else if (categoria === 'Protección Alturas') prefijo = 'EPP-ALT'
+  else if (categoria === 'Protección Climática') prefijo = 'EPP-CLI'
+  else if (categoria === 'Herramientas / Accesorios') prefijo = 'EPP-ACC'
+
+  const palabras = (nombre || '')
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Z0-9\s]/g, '')
+    .split(/\s+/)
+    .filter(p => p.length >= 2 && !['CON', 'PARA', 'POR', 'DEL', 'LOS', 'LAS', 'TIPO', 'UNA'].includes(p))
+
+  let abrev = 'ART'
+  if (palabras.length >= 2) {
+    abrev = palabras[0].slice(0, 3) + palabras[1].slice(0, 1)
+  } else if (palabras.length === 1) {
+    abrev = palabras[0].slice(0, 4)
+  }
+
+  const tallaStr = (talla || '').trim().toUpperCase()
+  const sufijoTalla = tallaStr && tallaStr !== 'TALLA ÚNICA' && tallaStr !== 'ESTÁNDAR' && tallaStr !== 'ÚNICO'
+    ? `-${tallaStr.replace(/\s+/g, '')}`
+    : '-01'
+
+  return `${prefijo}-${abrev}${sufijoTalla}`
+}
+
 const emptyForm = {
   codigo: '',
   nombre: '',
@@ -1145,7 +1181,19 @@ export default function CatalogoPage() {
               </div>
 
               <div className="col-span-2 sm:col-span-1">
-                <label className="label">Código SKU *</label>
+                <div className="flex items-center justify-between">
+                  <label className="label">Código SKU *</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const sku = generarSkuSugerido(form.categoria, form.nombre, form.talla)
+                      setForm(f => ({ ...f, codigo: sku }))
+                    }}
+                    className="text-[10px] font-bold text-blue-600 dark:text-cyan-400 hover:underline flex items-center gap-0.5"
+                  >
+                    ⚡ Auto SKU
+                  </button>
+                </div>
                 <input
                   className="input-field font-mono font-bold"
                   placeholder="Ej. CAL-BOT-42"
@@ -1171,12 +1219,19 @@ export default function CatalogoPage() {
                     const descElegida = e.target.value
                     if (!descElegida) return
                     const itemData = (DESCRIPCIONES_POR_CATEGORIA[form.categoria] || []).find(d => d.nombre === descElegida)
-                    setForm(f => ({
-                      ...f,
-                      nombre: descElegida,
-                      costoUnitario: itemData ? String(itemData.costoAprox) : f.costoUnitario,
-                      vidaUtilDias: itemData ? String(itemData.vidaUtil) : f.vidaUtilDias,
-                    }))
+                    setForm(f => {
+                      const nuevoSku = (!f.codigo || f.codigo.startsWith('EPP-') || f.codigo.startsWith('CAL-') || f.codigo.startsWith('UNI-'))
+                        ? generarSkuSugerido(f.categoria, descElegida, f.talla)
+                        : f.codigo
+
+                      return {
+                        ...f,
+                        nombre: descElegida,
+                        codigo: nuevoSku,
+                        costoUnitario: itemData ? String(itemData.costoAprox) : f.costoUnitario,
+                        vidaUtilDias: itemData ? String(itemData.vidaUtil) : f.vidaUtilDias,
+                      }
+                    })
                   }}
                 >
                   <option value="">
