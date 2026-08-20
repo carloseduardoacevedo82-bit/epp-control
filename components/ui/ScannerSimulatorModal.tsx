@@ -139,6 +139,7 @@ export default function OpticalScannerModal({
   const [scannedResult, setScannedResult] = useState<{
     code: string
     worker?: any
+    isInactive?: boolean
     timestamp: number
   } | null>(null)
 
