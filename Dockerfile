@@ -51,11 +51,12 @@ RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
 # Crear directorios para persistencia de datos (SQLite y PDFs generados)
-RUN mkdir -p /app/public/constancias /app/data && \
-    chown -R nextjs:nodejs /app/public/constancias /app/data
+RUN mkdir -p /app/public/constancias /app/data /app/reportes_mensuales /app/prisma && \
+    chown -R nextjs:nodejs /app
 
-# Copiar base de datos pre-sembrada
+# Copiar base de datos pre-sembrada en ubicaciones estándar
 COPY --from=builder --chown=nextjs:nodejs /app/dev.db ./dev.db
+COPY --from=builder --chown=nextjs:nodejs /app/dev.db /app/data/dev.db
 
 # Copiar artefactos compilados y assets estáticos
 COPY --from=builder /app/public ./public
@@ -64,6 +65,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 
+# Otorgar permisos completos de lectura/escritura a nextjs
+RUN chown -R nextjs:nodejs /app && \
+    chmod -R 777 /app/data /app/public/constancias /app/reportes_mensuales /app/prisma && \
+    chmod 666 /app/dev.db /app/data/dev.db /app/prisma/dev.db 2>/dev/null || true
 
 USER nextjs
 
