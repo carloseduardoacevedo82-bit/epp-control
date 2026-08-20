@@ -66,6 +66,32 @@ function reproducirBeepExito() {
   }
 }
 
+// Reproductor de sonido de alarma / error para rechazo de trabajador inactivo
+function reproducirBeepRechazo() {
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext
+    if (!AudioContext) return
+    const ctx = new AudioContext()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+
+    osc.type = 'sawtooth'
+    osc.frequency.setValueAtTime(220, ctx.currentTime) // Tono bajo de advertencia
+    osc.frequency.setValueAtTime(140, ctx.currentTime + 0.15)
+
+    gain.gain.setValueAtTime(0.4, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4)
+
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+
+    osc.start()
+    osc.stop(ctx.currentTime + 0.4)
+  } catch (e) {
+    // Ignorar si el navegador bloquea audio
+  }
+}
+
 // Limpiador y extractor inteligente de códigos
 export function parseScannedCode(rawText: string): string {
   if (!rawText) return ''
@@ -255,28 +281,49 @@ export default function OpticalScannerModal({
   }, [facingMode, stopCamera])
 
   // Manejador de éxito al detectar código
-  const handleSuccessScan = (rawText: string) => {
+  const handleSuccessScan = async (rawText: string) => {
     const cleanedCode = parseScannedCode(rawText)
     if (!cleanedCode) return
 
-    if (soundEnabled) {
-      reproducirBeepExito()
-    }
-    if (typeof navigator !== 'undefined' && navigator.vibrate) {
-      navigator.vibrate([100, 50, 100])
-    }
-
-    // Buscar si coincide con algún trabajador real
+    // Buscar si coincide con algún trabajador real en workersList
     let matchedWorker: any = null
-    if (mode === 'trabajador' && workersList.length > 0) {
+    if (workersList.length > 0) {
       matchedWorker = workersList.find(
         w =>
           w.dni === cleanedCode ||
-          (w.codigoFotocheck && w.codigoFotocheck.toUpperCase() === cleanedCode.toUpperCase())
+          (w.codigoFotocheck && w.codigoFotocheck.toUpperCase() === cleanedCode.toUpperCase()) ||
+          rawText.includes(w.dni) ||
+          (w.codigoFotocheck && rawText.toUpperCase().includes(w.codigoFotocheck.toUpperCase()))
       )
     }
 
+    // Si no se encuentra en la lista local (o mode es general), consultar la API de trabajadores
+    if (!matchedWorker) {
+      try {
+        const res = await fetch(`/api/trabajadores?search=${encodeURIComponent(cleanedCode)}`)
+        if (res.ok) {
+          const list = await res.json()
+          if (Array.isArray(list) && list.length > 0) {
+            matchedWorker = list[0]
+          }
+        }
+      } catch (err) {
+        console.warn('Error en búsqueda de trabajador:', err)
+      }
+    }
+
     const isInactive = matchedWorker && (matchedWorker.estado === 'inactivo' || matchedWorker.estado === 'BAJA' || matchedWorker.estado === 'INACTIVE')
+
+    if (soundEnabled) {
+      if (isInactive) {
+        reproducirBeepRechazo()
+      } else {
+        reproducirBeepExito()
+      }
+    }
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate(isInactive ? [200, 100, 200, 100, 300] : [100, 50, 100])
+    }
 
     setScannedResult({
       code: cleanedCode,
@@ -334,20 +381,13 @@ export default function OpticalScannerModal({
   if (!isOpen) return null
 
   const handleSelectPreset = (code: string) => {
-    if (soundEnabled) reproducirBeepExito()
-    onScan(code)
-    stopCamera()
-    onClose()
+    handleSuccessScan(code)
   }
 
   const handleSubmitManual = (e: React.FormEvent) => {
     e.preventDefault()
     if (!manualCode.trim()) return
-    const code = parseScannedCode(manualCode)
-    if (soundEnabled) reproducirBeepExito()
-    onScan(code)
-    stopCamera()
-    onClose()
+    handleSuccessScan(manualCode)
   }
 
   return (

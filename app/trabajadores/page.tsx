@@ -312,11 +312,17 @@ export default function TrabajadoresPage() {
                   </td>
                 </tr>
               ) : (
-                trabajadores.map(t => (
-                  <tr key={t.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                trabajadores.map(t => {
+                  const isInactive = t.estado === 'inactivo'
+                  return (
+                  <tr key={t.id} className={`transition ${isInactive ? 'bg-red-500/5 hover:bg-red-500/10' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}>
                     <td className="py-3.5 px-4 font-mono text-xs whitespace-nowrap">
                       <div className="flex flex-col gap-1">
-                        <span className="font-black text-blue-700 dark:text-cyan-400 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded-lg border border-blue-200 dark:border-blue-800">
+                        <span className={`font-black px-2 py-0.5 rounded-lg border ${
+                          isInactive
+                            ? 'text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-800'
+                            : 'text-blue-700 dark:text-cyan-400 bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800'
+                        }`}>
                           {t.dni}
                         </span>
                         {t.codigoFotocheck && (
@@ -324,11 +330,21 @@ export default function TrabajadoresPage() {
                             📷 {t.codigoFotocheck}
                           </span>
                         )}
+                        {isInactive && (
+                          <span className="text-[10px] font-black text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-950/80 px-1.5 py-0.5 rounded border border-red-300 dark:border-red-700 flex items-center gap-0.5">
+                            ⛔ INACTIVO
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="py-3.5 px-4">
-                      <div className="font-black text-sm text-slate-950 dark:text-white leading-snug">
-                        {t.apellidos}, {t.nombres}
+                      <div className="font-black text-sm text-slate-950 dark:text-white leading-snug flex items-center gap-2 flex-wrap">
+                        <span>{t.apellidos}, {t.nombres}</span>
+                        {isInactive && (
+                          <span className="text-[10px] font-black text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-950/90 px-2 py-0.5 rounded-full border border-red-300 dark:border-red-700">
+                            ⛔ DADO DE BAJA
+                          </span>
+                        )}
                       </div>
                       <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-2">
                         <span>Ingreso: {new Date(t.fechaIngreso).toLocaleDateString('es-PE')}</span>
@@ -394,7 +410,7 @@ export default function TrabajadoresPage() {
                       </div>
                     </td>
                   </tr>
-                ))
+                )})
               )}
             </tbody>
           </table>
