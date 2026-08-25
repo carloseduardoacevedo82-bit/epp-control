@@ -167,6 +167,55 @@ function normalizarNombreModelo(nombre: string): string {
     .trim()
 }
 
+// Genera un prefijo de código SKU base único e inteligente para cada modelo de producto
+function calcularCodigoBaseModelo(art: ArticuloEPP): string {
+  const nombreNorm = (art.nombre || '')
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Z0-9\s]/g, '')
+
+  // 1. Si el código ya tiene un prefijo de modelo específico reconocible (ej. CAL-BOTD, CAL-BOTG, UNI-POLC, etc.)
+  if (art.codigo && !/^EPP-\d+$/i.test(art.codigo) && !/^EPP-T\w+$/i.test(art.codigo) && !/^EPP$/i.test(art.codigo)) {
+    const limpio = art.codigo
+      .replace(/-T\w+$/i, '')
+      .replace(/-(3[5-9]|4[0-9]|XS|S|M|L|XL|XXL|XXXL|XXXXL|\d{2})$/i, '')
+    if (limpio && limpio !== 'EPP' && limpio !== 'CAL' && limpio !== 'UNI') {
+      return limpio
+    }
+  }
+
+  // 2. Si el código era genérico (ej. EPP-014, EPP-015, EPP-T35, etc.), derivamos un código semántico único por modelo
+  if (art.categoria === 'Calzado') {
+    if (nombreNorm.includes('DIELEC')) return 'CAL-BOTD'
+    if (nombreNorm.includes('GOMA') || nombreNorm.includes('LARG')) return 'CAL-BOTG'
+    if (nombreNorm.includes('TERM')) return 'CAL-BOTT'
+    if (nombreNorm.includes('BOTIN') || nombreNorm.includes('CUERO')) return 'CAL-BOTC'
+    if (nombreNorm.includes('PUNTA') && nombreNorm.includes('ACERO')) return 'CAL-BOTP'
+    if (nombreNorm.includes('ZAPAT')) return 'CAL-ZAP'
+    return `CAL-${art.codigo ? art.codigo.replace(/[^A-Z0-9]/gi, '').slice(0, 5) : 'BOT'}`
+  }
+
+  if (art.categoria === 'Uniforme') {
+    if (nombreNorm.includes('POLO') && (nombreNorm.includes('CORTA') || nombreNorm.includes('MC'))) return 'UNI-POLC'
+    if (nombreNorm.includes('POLO') && (nombreNorm.includes('LARGA') || nombreNorm.includes('ML'))) return 'UNI-POLL'
+    if (nombreNorm.includes('POLO')) return 'UNI-POLO'
+    if (nombreNorm.includes('SUETER') || nombreNorm.includes('CHOMPA')) return 'UNI-SUET'
+    if (nombreNorm.includes('PANTALON') && nombreNorm.includes('DRILL')) return 'UNI-PAND'
+    if (nombreNorm.includes('PANTALON') && nombreNorm.includes('TERM')) return 'UNI-PANT'
+    if (nombreNorm.includes('PANTALON')) return 'UNI-PAND'
+    if (nombreNorm.includes('CHAQUETA') || nombreNorm.includes('IGNIF')) return 'UNI-CHAI'
+    if (nombreNorm.includes('CASACA')) return 'UNI-CASA'
+    if (nombreNorm.includes('CHALECO')) return 'UNI-CHAL'
+    if (nombreNorm.includes('MEDIA') && nombreNorm.includes('GRUES')) return 'UNI-MEDG'
+    if (nombreNorm.includes('MEDIA') && nombreNorm.includes('TERM')) return 'UNI-MEDT'
+    if (nombreNorm.includes('MEDIA')) return 'UNI-MEDI'
+    return `UNI-${art.codigo ? art.codigo.replace(/[^A-Z0-9]/gi, '').slice(0, 5) : 'PREN'}`
+  }
+
+  return art.codigo ? art.codigo.replace(/-T\w+$/i, '') : 'EPP-GEN'
+}
+
 export default function CatalogoPage() {
   const { isAdmin } = useRole()
   const [articulos, setArticulos] = useState<ArticuloEPP[]>([])
@@ -202,6 +251,7 @@ export default function CatalogoPage() {
     codigoPrefijo: string
     tallaDeseada: string
   } | null>(null)
+  const [skuNuevaTalla, setSkuNuevaTalla] = useState<string>('')
   const [stockInicialNuevaTalla, setStockInicialNuevaTalla] = useState<string>('10')
   const [stockMinimoNuevaTalla, setStockMinimoNuevaTalla] = useState<string>('5')
   const [activandoTalla, setActivandoTalla] = useState(false)
@@ -277,7 +327,7 @@ export default function CatalogoPage() {
           marca: art.marcaFabricante || 'Estándar',
           costoPromedio: art.costoUnitario,
           vidaUtil: art.vidaUtilDias,
-          codigoBase: art.codigo.split('-T')[0].replace(/-\d+$/, ''),
+          codigoBase: calcularCodigoBaseModelo(art),
           articulosPorTalla: new Map<string, ArticuloEPP>(),
           stockTotal: 0,
         })
@@ -315,7 +365,7 @@ export default function CatalogoPage() {
           marca: art.marcaFabricante || 'Estándar',
           costoPromedio: art.costoUnitario,
           vidaUtil: art.vidaUtilDias,
-          codigoBase: art.codigo.split('-T')[0].replace(/-\d+$/, ''),
+          codigoBase: calcularCodigoBaseModelo(art),
           articulosPorTalla: new Map<string, ArticuloEPP>(),
           stockTotal: 0,
         })
@@ -383,9 +433,22 @@ export default function CatalogoPage() {
   }
 
   const abrirActivarTalla = (modelo: any, tallaDeseada: string) => {
+    // Generar un código SKU sugerido garantizado único
+    let codigoSugerido = `${modelo.codigoBase}-${tallaDeseada}`.toUpperCase()
+    
+    if (articulos.some(a => a.codigo.toUpperCase() === codigoSugerido)) {
+      codigoSugerido = `${modelo.codigoBase}-T${tallaDeseada}`.toUpperCase()
+    }
+    let counter = 1
+    while (articulos.some(a => a.codigo.toUpperCase() === codigoSugerido)) {
+      codigoSugerido = `${modelo.codigoBase}-${tallaDeseada}-${counter}`.toUpperCase()
+      counter++
+    }
+
+    setSkuNuevaTalla(codigoSugerido)
     setModeloBaseActivar({
       nombreBase: modelo.nombreBase,
-      categoria: modelo.nombreBase.toLowerCase().includes('pantalón') || modelo.nombreBase.toLowerCase().includes('polo') || modelo.nombreBase.toLowerCase().includes('suéter') || modelo.nombreBase.toLowerCase().includes('casaca') || modelo.nombreBase.toLowerCase().includes('chaleco') ? 'Uniforme' : 'Calzado',
+      categoria: modelo.categoria || (modelo.nombreBase.toLowerCase().includes('pantalón') || modelo.nombreBase.toLowerCase().includes('polo') || modelo.nombreBase.toLowerCase().includes('suéter') || modelo.nombreBase.toLowerCase().includes('casaca') || modelo.nombreBase.toLowerCase().includes('chaleco') ? 'Uniforme' : 'Calzado'),
       marca: modelo.marca,
       costo: modelo.costoPromedio,
       vidaUtil: modelo.vidaUtil,
@@ -403,9 +466,15 @@ export default function CatalogoPage() {
     const stockInit = parseInt(stockInicialNuevaTalla, 10) || 0
     const stockMin = parseInt(stockMinimoNuevaTalla, 10) || 5
 
-    // Generar SKU único para la nueva talla
-    const nuevoCodigo = `${modeloBaseActivar.codigoPrefijo}-T${modeloBaseActivar.tallaDeseada}`.toUpperCase()
+    // SKU seleccionado o personalizado
+    const nuevoCodigo = (skuNuevaTalla || `${modeloBaseActivar.codigoPrefijo}-${modeloBaseActivar.tallaDeseada}`).trim().toUpperCase()
     const nuevoNombre = `${modeloBaseActivar.nombreBase} Talla ${modeloBaseActivar.tallaDeseada}`
+
+    // Validación preventiva en cliente antes de enviar
+    if (articulos.some(a => a.codigo.toUpperCase() === nuevoCodigo)) {
+      setErrorActivarTalla(`El código SKU "${nuevoCodigo}" ya está asignado a otro artículo en el catálogo. Por favor modifícalo para que sea único.`)
+      return
+    }
 
     setActivandoTalla(true)
     setErrorActivarTalla('')
@@ -1399,14 +1468,47 @@ export default function CatalogoPage() {
             )}
 
             <div className="space-y-3 text-xs">
-              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500 font-medium">SKU que se generará:</span>
-                  <span className="font-mono font-black text-blue-700 dark:text-cyan-400">
-                    {modeloBaseActivar.codigoPrefijo}-T{modeloBaseActivar.tallaDeseada}
-                  </span>
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-2">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                      Código SKU para Talla {modeloBaseActivar.tallaDeseada}:
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        let cod = `${modeloBaseActivar.codigoPrefijo}-${modeloBaseActivar.tallaDeseada}`.toUpperCase()
+                        let c = 1
+                        while (articulos.some(a => a.codigo.toUpperCase() === cod)) {
+                          cod = `${modeloBaseActivar.codigoPrefijo}-${modeloBaseActivar.tallaDeseada}-${c}`.toUpperCase()
+                          c++
+                        }
+                        setSkuNuevaTalla(cod)
+                      }}
+                      className="text-[10px] text-blue-600 dark:text-cyan-400 hover:underline font-bold"
+                    >
+                      🔄 Auto-generar
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    className={`input-field font-mono font-bold uppercase text-xs ${
+                      articulos.some(a => a.codigo.toUpperCase() === skuNuevaTalla.trim().toUpperCase())
+                        ? 'border-red-500 bg-red-50/50 dark:bg-red-950/30 text-red-700'
+                        : 'border-slate-300 text-blue-700 dark:text-cyan-400'
+                    }`}
+                    value={skuNuevaTalla}
+                    onChange={e => setSkuNuevaTalla(e.target.value.toUpperCase())}
+                    placeholder="Ej: CAL-BOTD-35"
+                  />
+                  {articulos.some(a => a.codigo.toUpperCase() === skuNuevaTalla.trim().toUpperCase()) && (
+                    <p className="text-[10px] text-red-600 font-bold mt-1">
+                      ⚠️ Este código SKU ya está en uso. Modifícalo para evitar duplicados.
+                    </p>
+                  )}
                 </div>
-                <div className="flex items-center justify-between">
+
+                <div className="flex items-center justify-between pt-1 border-t border-slate-200 dark:border-slate-700 text-[11px]">
                   <span className="text-slate-500 font-medium">Costo unitario base:</span>
                   <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
                     S/ {modeloBaseActivar.costo.toFixed(2)}
@@ -1449,8 +1551,8 @@ export default function CatalogoPage() {
               <button
                 type="button"
                 onClick={guardarActivacionTalla}
-                disabled={activandoTalla}
-                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-blue-500/20 active:scale-95"
+                disabled={activandoTalla || !skuNuevaTalla.trim() || articulos.some(a => a.codigo.toUpperCase() === skuNuevaTalla.trim().toUpperCase())}
+                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-blue-500/20 active:scale-95"
               >
                 <CheckCircle2 size={14} /> {activandoTalla ? 'Habilitando...' : 'Habilitar y Guardar Talla'}
               </button>
