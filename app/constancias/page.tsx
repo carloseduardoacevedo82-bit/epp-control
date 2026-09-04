@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import {
   FolderArchive,
   FolderOpen,
@@ -22,12 +22,34 @@ import {
   FileCheck,
   Eye,
   X,
-  Printer,
-  Loader2,
+  Plus,
+  Coins,
+  ShieldCheck,
+  History,
+  Clock,
+  ArrowLeft,
+  Users,
 } from 'lucide-react'
 import type { CarpetaTrabajadorConstancias, ConstanciaArchivoItem, Entrega } from '@/lib/types'
 import { generarActaEntregaPDF, obtenerActaPDFBlobUrl } from '@/lib/generatePDF'
 import { format } from 'date-fns'
+import { es } from 'date-fns/locale'
+import Link from 'next/link'
+
+interface MesDisponible {
+  mes: string
+  label: string
+  totalActas: number
+  totalPrendas: number
+  totalCosto: number
+}
+
+interface ResumenPeriodo {
+  totalActas: number
+  totalCarpetas: number
+  totalPrendas: number
+  inversionTotal: number
+}
 
 export default function ConstanciasPage() {
   const [carpetas, setCarpetas] = useState<CarpetaTrabajadorConstancias[]>([])
@@ -36,32 +58,86 @@ export default function ConstanciasPage() {
   const [carpetaExpandida, setCarpetaExpandida] = useState<string | null>(null)
   const [descargandoZip, setDescargandoZip] = useState(false)
   const [descargandoZipMensual, setDescargandoZipMensual] = useState(false)
-  const [mesSeleccionado, setMesSeleccionado] = useState(format(new Date(), 'yyyy-MM'))
-  const [soloMesActual, setSoloMesActual] = useState(false)
+
+  // Mes actual del sistema (ej: '2026-09')
+  const mesActualStr = format(new Date(), 'yyyy-MM')
+  const [periodoSeleccionado, setPeriodoSeleccionado] = useState<string>(mesActualStr)
+  
+  const [mesesDisponibles, setMesesDisponibles] = useState<MesDisponible[]>([])
+  const [resumenPeriodo, setResumenPeriodo] = useState<ResumenPeriodo>({
+    totalActas: 0,
+    totalCarpetas: 0,
+    totalPrendas: 0,
+    inversionTotal: 0,
+  })
+
+  const [ultimaSincronizacion, setUltimaSincronizacion] = useState<string>('')
+  const [isRefreshing, setIsRefreshing] = useState(false)
+
   const [pdfModalUrl, setPdfModalUrl] = useState<string | null>(null)
   const [pdfModalTitulo, setPdfModalTitulo] = useState<string>('')
   const [cargandoPdfId, setCargandoPdfId] = useState<number | null>(null)
 
-  const cargarCarpetas = async (mesFiltro?: string) => {
-    setLoading(true)
+  const esMesActual = periodoSeleccionado === mesActualStr
+  const esHistoricoCompleto = periodoSeleccionado === 'todos'
+
+  // Cargar carpetas y datos
+  const cargarConstancias = async (periodo: string, silente: boolean = false) => {
+    if (!silente) setLoading(true)
+    setIsRefreshing(true)
     try {
-      const url = mesFiltro ? `/api/constancias?mes=${mesFiltro}` : '/api/constancias'
+      const url = periodo === 'todos' ? '/api/constancias?mes=todos' : `/api/constancias?mes=${periodo}`
       const res = await fetch(url)
       const data = await res.json()
       if (data.ok) {
         setCarpetas(data.carpetas)
+        if (data.mesesDisponibles) {
+          setMesesDisponibles(data.mesesDisponibles)
+        }
+        if (data.resumenPeriodo) {
+          setResumenPeriodo(data.resumenPeriodo)
+        }
         if (data.carpetas.length > 0 && !carpetaExpandida) {
           setCarpetaExpandida(data.carpetas[0].rutaCarpeta)
         }
+        setUltimaSincronizacion(new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
       }
+    } catch (err) {
+      console.error('Error al cargar constancias:', err)
     } finally {
       setLoading(false)
+      setIsRefreshing(false)
     }
   }
 
+  // Cargar al cambiar el período
   useEffect(() => {
-    cargarCarpetas(soloMesActual ? mesSeleccionado : undefined)
-  }, [soloMesActual, mesSeleccionado])
+    cargarConstancias(periodoSeleccionado)
+  }, [periodoSeleccionado])
+
+  // Polling automático cada 30 segundos solo si está visualizando el mes actual
+  useEffect(() => {
+    if (!esMesActual) return
+    const interval = setInterval(() => {
+      cargarConstancias(mesActualStr, true)
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [esMesActual, mesActualStr])
+
+  // Obtener etiqueta amigable del período seleccionado
+  const obtenerLabelPeriodo = () => {
+    if (esHistoricoCompleto) return 'Histórico Consolidado (Todos los Meses)'
+    const mesObj = mesesDisponibles.find(m => m.mes === periodoSeleccionado)
+    if (mesObj) return mesObj.label
+    try {
+      const [y, m] = periodoSeleccionado.split('-')
+      const d = new Date(parseInt(y), parseInt(m) - 1, 1)
+      const formatted = format(d, 'MMMM yyyy', { locale: es })
+      return formatted.charAt(0).toUpperCase() + formatted.slice(1)
+    } catch {
+      return periodoSeleccionado
+    }
+  }
 
   const carpetasFiltradas = carpetas.filter(c => {
     const q = search.toLowerCase()
@@ -73,11 +149,13 @@ export default function ConstanciasPage() {
     )
   })
 
-  const totalActas = carpetas.reduce((acc, c) => acc + c.totalConstancias, 0)
-
-  const handleDescargarZipMensual = (mes: string) => {
+  const handleDescargarZipPeriodo = () => {
     setDescargandoZipMensual(true)
-    window.location.href = `/api/constancias?zip=true&mes=${mes}`
+    if (esHistoricoCompleto) {
+      window.location.href = '/api/constancias?zip=true'
+    } else {
+      window.location.href = `/api/constancias?zip=true&mes=${periodoSeleccionado}`
+    }
     setTimeout(() => setDescargandoZipMensual(false), 2500)
   }
 
@@ -129,119 +207,282 @@ export default function ConstanciasPage() {
 
   return (
     <div className="w-full px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* ── ENCABEZADO Y ESTADO DE SINCRONIZACIÓN ─────────────────────────── */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600/20 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
-            <FolderArchive className="w-5 h-5" />
+          <div className="w-11 h-11 rounded-2xl bg-blue-600/20 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/20">
+            <FolderArchive className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-lg sm:text-xl font-black text-slate-950 dark:text-white">
-              Archivo Digital Estructurado de Constancias
-            </h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-lg sm:text-xl font-black text-slate-950 dark:text-white">
+                Archivo Digital de Actas y Constancias
+              </h1>
+              {esMesActual ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 animate-pulse">
+                  <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+                  MES ACTUAL (En Vivo)
+                </span>
+              ) : esHistoricoCompleto ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300 border border-purple-300 dark:border-purple-800">
+                  <History size={12} /> HISTÓRICO GENERAL
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                  <Calendar size={12} /> HISTÓRICO ({obtenerLabelPeriodo()})
+                </span>
+              )}
+            </div>
             <p className="text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-400">
-              Expedientes de entrega con firma digital archivados por mes y trabajador
+              Expedientes oficiales con firma digital organizados por mes calendario y colaborador
             </p>
           </div>
         </div>
 
-        {/* Acciones Rápidas */}
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <button
-            onClick={() => cargarCarpetas(soloMesActual ? mesSeleccionado : undefined)}
-            className="p-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 transition"
-            title="Refrescar carpetas"
-          >
-            <RefreshCw size={15} />
-          </button>
+        {/* Acciones Rápidas del Header */}
+        <div className="flex flex-wrap items-center gap-2">
+          {ultimaSincronizacion && (
+            <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700">
+              <Clock size={12} className="text-slate-400" />
+              <span>Sincronizado: {ultimaSincronizacion}</span>
+            </span>
+          )}
 
           <button
-            onClick={handleDescargarZipGeneral}
-            disabled={totalActas === 0 || descargandoZip}
-            className="flex-1 sm:flex-none justify-center px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-1.5 border border-slate-700 shadow-sm transition active:scale-95 disabled:opacity-40"
-            title="Descarga todas las actas históricas"
+            onClick={() => cargarConstancias(periodoSeleccionado)}
+            disabled={isRefreshing}
+            className="p-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 transition cursor-pointer disabled:opacity-50"
+            title="Refrescar datos ahora"
           >
-            <Archive size={15} /> {descargandoZip ? 'Comprimiendo...' : 'Descargar Todo el Histórico (ZIP)'}
+            <RefreshCw size={15} className={isRefreshing ? 'animate-spin text-blue-600' : ''} />
+          </button>
+
+          {!esMesActual && (
+            <button
+              onClick={() => setPeriodoSeleccionado(mesActualStr)}
+              className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black flex items-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer"
+            >
+              <ArrowLeft size={13} /> Volver a Mes Actual
+            </button>
+          )}
+
+          <Link
+            href="/entregas/nueva"
+            className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black flex items-center gap-1.5 shadow-md shadow-blue-500/20 transition active:scale-95 cursor-pointer"
+          >
+            <Plus size={14} /> Nueva Entrega
+          </Link>
+        </div>
+      </div>
+
+      {/* ── BARRA DE NAVEGACIÓN Y SELECTOR DE MESES (HISTÓRICO) ──────────── */}
+      <div className="card p-4 bg-gradient-to-r from-slate-50 via-white to-blue-50/40 dark:from-slate-900/90 dark:via-slate-900 dark:to-slate-800 border-slate-200 dark:border-slate-700/80 shadow-sm space-y-3">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="p-1.5 bg-blue-600/10 text-blue-700 dark:text-blue-400 rounded-lg font-black text-xs">
+              <Calendar size={15} />
+            </span>
+            <div>
+              <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                Consulta de Meses e Historial
+              </span>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                Seleccione un mes del histórico o consulte el consolidado general
+              </p>
+            </div>
+          </div>
+
+          {/* Selector de Mes Libre */}
+          <div className="flex items-center gap-2 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 shadow-xs self-start md:self-auto">
+            <Calendar size={14} className="text-blue-600 dark:text-blue-400 shrink-0" />
+            <label htmlFor="mes-selector" className="text-[11px] font-bold text-slate-500 uppercase">
+              Otro Mes:
+            </label>
+            <input
+              id="mes-selector"
+              type="month"
+              value={esHistoricoCompleto ? mesActualStr : periodoSeleccionado}
+              onChange={e => {
+                if (e.target.value) setPeriodoSeleccionado(e.target.value)
+              }}
+              className="bg-transparent text-xs font-black text-slate-900 dark:text-white outline-none cursor-pointer"
+            />
+          </div>
+        </div>
+
+        {/* Píldoras de Acceso Rápido por Mes */}
+        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-200/60 dark:border-slate-800">
+          {/* Botón Mes Actual */}
+          <button
+            onClick={() => setPeriodoSeleccionado(mesActualStr)}
+            className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition cursor-pointer shadow-xs ${
+              esMesActual
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40'
+                : 'bg-white dark:bg-slate-800/90 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${esMesActual ? 'bg-emerald-300 animate-ping' : 'bg-emerald-500'}`}></span>
+            <span>Mes Actual ({obtenerLabelPeriodo().split(' ')[0]})</span>
+            <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono font-bold ${
+              esMesActual ? 'bg-blue-800 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+            }`}>
+              {mesesDisponibles.find(m => m.mes === mesActualStr)?.totalActas ?? 0}
+            </span>
+          </button>
+
+          {/* Meses Históricos Disponibles con Actas */}
+          {mesesDisponibles
+            .filter(m => m.mes !== mesActualStr && m.totalActas > 0)
+            .map(m => {
+              const activo = periodoSeleccionado === m.mes
+              return (
+                <button
+                  key={m.mes}
+                  onClick={() => setPeriodoSeleccionado(m.mes)}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition cursor-pointer shadow-xs ${
+                    activo
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40'
+                      : 'bg-white dark:bg-slate-800/90 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
+                  }`}
+                >
+                  <FolderArchive size={13} className={activo ? 'text-white' : 'text-blue-500'} />
+                  <span>{m.label}</span>
+                  <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono font-bold ${
+                    activo ? 'bg-blue-800 text-white' : 'bg-blue-50 dark:bg-slate-700 text-blue-700 dark:text-blue-300'
+                  }`}>
+                    {m.totalActas} {m.totalActas === 1 ? 'acta' : 'actas'}
+                  </span>
+                </button>
+              )
+            })}
+
+          {/* Botón Todo el Histórico */}
+          <button
+            onClick={() => setPeriodoSeleccionado('todos')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition cursor-pointer shadow-xs ${
+              esHistoricoCompleto
+                ? 'bg-purple-700 text-white shadow-md shadow-purple-500/25 ring-2 ring-purple-400/40'
+                : 'bg-white dark:bg-slate-800/90 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
+            }`}
+          >
+            <Layers size={13} className={esHistoricoCompleto ? 'text-white' : 'text-purple-500'} />
+            <span>Todo el Histórico</span>
+            <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono font-bold ${
+              esHistoricoCompleto ? 'bg-purple-900 text-white' : 'bg-purple-50 dark:bg-slate-700 text-purple-700 dark:text-purple-300'
+            }`}>
+              {mesesDisponibles.reduce((acc, m) => acc + m.totalActas, 0)}
+            </span>
           </button>
         </div>
       </div>
 
-      {/* ── PANEL DE DESCARGA MASIVA MENSUAL PARA CONTROL Y AUDITORÍA ────── */}
-      <div className="card p-5 bg-gradient-to-br from-blue-50/70 via-white to-indigo-50/40 dark:from-slate-800/90 dark:via-slate-800 dark:to-slate-900 border-blue-200 dark:border-slate-700 shadow-sm space-y-4">
+      {/* ── TARJETAS KPI DE RESUMEN DEL PERÍODO ──────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="card p-4 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/80 shadow-xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-200 dark:border-blue-800/40">
+            <FileCheck size={20} />
+          </div>
+          <div>
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Actas Emitidas</p>
+            <p className="text-lg sm:text-xl font-black text-slate-950 dark:text-white font-mono">
+              {resumenPeriodo.totalActas}
+            </p>
+          </div>
+        </div>
+
+        <div className="card p-4 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/80 shadow-xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-200 dark:border-emerald-800/40">
+            <Users size={20} />
+          </div>
+          <div>
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Colaboradores</p>
+            <p className="text-lg sm:text-xl font-black text-slate-950 dark:text-white font-mono">
+              {resumenPeriodo.totalCarpetas}
+            </p>
+          </div>
+        </div>
+
+        <div className="card p-4 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/80 shadow-xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0 border border-amber-200 dark:border-amber-700/40">
+            <PackageCheck size={20} />
+          </div>
+          <div>
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Prendas / EPPs</p>
+            <p className="text-lg sm:text-xl font-black text-slate-950 dark:text-white font-mono">
+              {resumenPeriodo.totalPrendas}
+            </p>
+          </div>
+        </div>
+
+        <div className="card p-4 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/80 shadow-xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-200 dark:border-indigo-800/40">
+            <Building2 size={20} />
+          </div>
+          <div>
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Inversión Dotación</p>
+            <p className="text-base sm:text-lg font-black text-emerald-700 dark:text-emerald-400 font-mono">
+              S/ {resumenPeriodo.inversionTotal.toFixed(2)}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── PANEL DE DESCARGA MASIVA DIRECTA (PDFs Planos) ──────────────── */}
+      <div className="card p-4 sm:p-5 bg-gradient-to-br from-blue-50/80 via-white to-indigo-50/50 dark:from-slate-800/90 dark:via-slate-800 dark:to-slate-900 border-blue-200 dark:border-slate-700 shadow-xs space-y-3">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="p-1.5 bg-blue-600 text-white rounded-lg shadow-sm">
+              <span className="p-1.5 bg-blue-600 text-white rounded-lg shadow-xs">
                 <FileCheck size={16} />
               </span>
               <h2 className="text-sm sm:text-base font-black text-slate-950 dark:text-white">
-                Descarga Masiva de Archivos PDF (Sin Carpetas)
+                Descarga Masiva de Actas PDF para Auditoría SST
               </h2>
               <span className="text-[10px] uppercase font-black tracking-wider bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
-                PDFs Directos
+                {obtenerLabelPeriodo()}
               </span>
             </div>
             <p className="text-xs text-slate-600 dark:text-slate-400 max-w-2xl font-medium">
-              Descarga directamente en un solo archivo comprimido (.ZIP) todos los documentos PDF del mes seleccionado, con nombres identificativos claros <span className="font-mono text-blue-700 dark:text-cyan-300 font-bold">YYYY-MM-DD_ENT-XXXXX_DNI_Apellidos_Nombres.pdf</span> listos para usar sin subcarpetas.
+              Descargue en un solo archivo comprimido (.ZIP) todos los documentos PDF con firmas digitales, nombrados según norma <span className="font-mono text-blue-700 dark:text-cyan-300 font-bold">YYYY-MM-DD_ENT-XXXXX_DNI_Apellidos_Nombres.pdf</span> listos para inspecciones laborales de SUNAFIL o auditorías internas.
             </p>
           </div>
 
-          {/* Selector de Mes y Botón de Descarga Masiva */}
-          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 shrink-0">
-            <div className="flex items-center gap-2 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 shadow-xs">
-              <Calendar size={15} className="text-blue-600 dark:text-blue-400 shrink-0" />
-              <label htmlFor="mes-control" className="text-[11px] font-bold text-slate-500 uppercase">Mes:</label>
-              <input
-                id="mes-control"
-                type="month"
-                value={mesSeleccionado}
-                onChange={e => setMesSeleccionado(e.target.value)}
-                className="bg-transparent text-xs font-black text-slate-900 dark:text-white outline-none cursor-pointer"
-              />
-            </div>
-
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
             <button
-              onClick={() => handleDescargarZipMensual(mesSeleccionado)}
-              disabled={descargandoZipMensual}
+              onClick={handleDescargarZipPeriodo}
+              disabled={descargandoZipMensual || resumenPeriodo.totalActas === 0}
               className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-black flex items-center gap-2 shadow-md shadow-blue-500/25 transition active:scale-95 disabled:opacity-50 cursor-pointer"
             >
               <Download size={15} />
-              {descargandoZipMensual ? 'Generando PDFs...' : `Descargar PDFs de ${mesSeleccionado} (ZIP)`}
+              {descargandoZipMensual
+                ? 'Comprimiendo Actas...'
+                : esHistoricoCompleto
+                ? 'Descargar Todo el Histórico (ZIP)'
+                : `Descargar Actas de ${obtenerLabelPeriodo()} (ZIP)`}
             </button>
-          </div>
-        </div>
 
-        {/* Barra de Filtro Rápido */}
-        <div className="pt-3 border-t border-slate-200/70 dark:border-slate-700/60 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 cursor-pointer select-none font-bold text-slate-700 dark:text-slate-300">
-              <input
-                type="checkbox"
-                checked={soloMesActual}
-                onChange={e => setSoloMesActual(e.target.checked)}
-                className="w-4 h-4 rounded text-blue-600 accent-blue-600 cursor-pointer"
-              />
-              <span>Filtrar carpetas mostradas solo para el mes de {mesSeleccionado}</span>
-            </label>
-          </div>
-
-          <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 font-semibold text-[11px]">
-            <span>Formato de descarga:</span>
-            <span className="font-mono text-slate-800 dark:text-slate-200 font-bold bg-white dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
-              Constancias_{mesSeleccionado.replace('-', '_')}.zip
-            </span>
+            {!esHistoricoCompleto && (
+              <button
+                onClick={handleDescargarZipGeneral}
+                disabled={descargandoZip}
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-1.5 border border-slate-700 transition active:scale-95 disabled:opacity-50 cursor-pointer"
+                title="Descargar histórico general consolidado de todos los tiempos"
+              >
+                <Archive size={14} /> Todo el Histórico
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Barra de Búsqueda y Estadísticas */}
-      <div className="card p-4 flex flex-wrap items-center justify-between gap-3 shadow-sm">
+      {/* ── BARRA DE BÚSQUEDA Y TOTALES EN PANTALLA ───────────────────────── */}
+      <div className="card p-3.5 sm:p-4 flex flex-wrap items-center justify-between gap-3 shadow-xs">
         <div className="relative flex-1 min-w-[240px]">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
           <input
             type="text"
             className="input-field input-with-icon text-xs py-2.5"
-            placeholder="Buscar por DNI, colaborador o departamento..."
+            placeholder={`Buscar por DNI, colaborador o departamento en ${obtenerLabelPeriodo()}...`}
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
@@ -249,24 +490,72 @@ export default function ConstanciasPage() {
 
         <div className="flex items-center gap-3 text-xs font-semibold text-slate-700 dark:text-slate-400">
           <span>
-            Carpetas: <strong className="text-slate-950 dark:text-white font-black">{carpetas.length}</strong>
+            Mostrando Carpetas: <strong className="text-slate-950 dark:text-white font-black">{carpetasFiltradas.length}</strong>
           </span>
           <span>•</span>
           <span>
-            Total Actas PDF: <strong className="text-blue-700 dark:text-cyan-400 font-black font-mono">{totalActas}</strong>
+            Actas en Vista: <strong className="text-blue-700 dark:text-cyan-400 font-black font-mono">
+              {carpetasFiltradas.reduce((acc, c) => acc + c.totalConstancias, 0)}
+            </strong>
           </span>
         </div>
       </div>
 
-      {/* Árbol de Carpetas por Trabajador */}
+      {/* ── ÁRBOL DE EXPEDIENTES / CARPETAS POR TRABAJADOR ────────────────── */}
       <div className="space-y-3">
         {loading ? (
-          <div className="card p-8 text-center text-slate-400 text-xs">
-            Cargando estructura de carpetas...
+          <div className="card p-12 text-center text-slate-400 text-xs space-y-2">
+            <RefreshCw size={24} className="animate-spin text-blue-500 mx-auto" />
+            <p className="font-bold">Cargando constancias de {obtenerLabelPeriodo()}...</p>
           </div>
         ) : carpetasFiltradas.length === 0 ? (
-          <div className="card p-8 text-center text-slate-500 text-xs">
-            No se encontraron carpetas o constancias registradas.
+          /* Estado Vacío Inteligente */
+          <div className="card p-10 text-center space-y-4 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60">
+            <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
+              <FolderArchive size={28} />
+            </div>
+            <div className="max-w-md mx-auto space-y-1">
+              <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                {search
+                  ? `No se encontraron resultados para "${search}"`
+                  : `No se registran entregas en ${obtenerLabelPeriodo()}`}
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {search
+                  ? 'Intente con otro término o verifique el DNI del trabajador.'
+                  : 'Puede registrar una nueva entrega para este mes o revisar las actas registradas en los meses anteriores.'}
+              </p>
+            </div>
+
+            {!search && (
+              <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
+                <Link
+                  href="/entregas/nueva"
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black flex items-center gap-1.5 shadow-md shadow-blue-500/20 transition active:scale-95"
+                >
+                  <Plus size={14} /> Registrar Nueva Entrega
+                </Link>
+
+                {mesesDisponibles.find(m => m.mes !== periodoSeleccionado && m.totalActas > 0) && (
+                  <button
+                    onClick={() => {
+                      const primerMesConActas = mesesDisponibles.find(m => m.totalActas > 0)
+                      if (primerMesConActas) setPeriodoSeleccionado(primerMesConActas.mes)
+                    }}
+                    className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold border border-slate-300 dark:border-slate-700 transition"
+                  >
+                    Ver Mes con Actas Anteriores
+                  </button>
+                )}
+
+                <button
+                  onClick={() => setPeriodoSeleccionado('todos')}
+                  className="px-4 py-2 rounded-xl bg-purple-100 dark:bg-purple-950/60 hover:bg-purple-200 text-purple-800 dark:text-purple-300 text-xs font-bold border border-purple-200 dark:border-purple-800 transition"
+                >
+                  Ver Todo el Histórico
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           carpetasFiltradas.map(c => {
@@ -276,12 +565,12 @@ export default function ConstanciasPage() {
             return (
               <div
                 key={c.dni}
-                className="rounded-2xl border border-slate-200 dark:border-slate-700/70 bg-white dark:bg-slate-800/40 overflow-hidden transition shadow-sm"
+                className="rounded-2xl border border-slate-200 dark:border-slate-700/70 bg-white dark:bg-slate-800/40 overflow-hidden transition shadow-xs"
               >
                 {/* Cabecera de la Carpeta */}
                 <div
                   onClick={() => setCarpetaExpandida(estaExpandida ? null : c.rutaCarpeta)}
-                  className="p-3.5 sm:p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/80 transition"
+                  className="p-3.5 sm:p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/80 transition select-none"
                 >
                   <div className="flex items-start justify-between gap-2.5 sm:gap-3">
                     <div className="flex items-start gap-2.5 sm:gap-3.5 min-w-0 flex-1">
@@ -316,7 +605,7 @@ export default function ConstanciasPage() {
                           e.stopPropagation()
                           handleDescargarZipCarpeta(carpetaKey)
                         }}
-                        className="p-1.5 sm:p-2 rounded-xl bg-slate-100 dark:bg-slate-700/60 hover:bg-blue-600 dark:hover:bg-blue-600 text-slate-700 dark:text-slate-300 hover:text-white transition border border-slate-300 dark:border-slate-600"
+                        className="p-1.5 sm:p-2 rounded-xl bg-slate-100 dark:bg-slate-700/60 hover:bg-blue-600 dark:hover:bg-blue-600 text-slate-700 dark:text-slate-300 hover:text-white transition border border-slate-300 dark:border-slate-600 cursor-pointer"
                         title="Descargar carpeta del trabajador en ZIP"
                       >
                         <Download size={14} />

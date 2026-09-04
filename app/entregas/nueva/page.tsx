@@ -119,6 +119,7 @@ function NuevaEntregaContent() {
   const [showScannerArticulo, setShowScannerArticulo] = useState(false)
 
   // Step 3: Signature & Details
+  const [fechaEntregaForm, setFechaEntregaForm] = useState(new Date().toISOString().split('T')[0])
   const [observaciones, setObservaciones] = useState('')
   const [firmaBase64, setFirmaBase64] = useState<string | null>(null)
   const [showSignatureModal, setShowSignatureModal] = useState(false)
@@ -228,6 +229,7 @@ function NuevaEntregaContent() {
         trabajadorId: trabajadorSeleccionado.id,
         firmaDigitalUrl: firmaBase64,
         observaciones: observaciones || null,
+        fechaEntrega: fechaEntregaForm ? new Date(`${fechaEntregaForm}T12:00:00`).toISOString() : undefined,
         detalles: items.map(i => ({
           articuloId: i.articulo.id,
           cantidad: i.cantidad,
@@ -268,6 +270,7 @@ function NuevaEntregaContent() {
     setItems([])
     setFirmaBase64(null)
     setObservaciones('')
+    setFechaEntregaForm(new Date().toISOString().split('T')[0])
     setEntregaCompletada(null)
     setError('')
   }
@@ -750,18 +753,32 @@ function NuevaEntregaContent() {
                 </p>
               </div>
 
-              {/* Observaciones */}
-              <div className="pt-2 border-t border-slate-700/50">
-                <label className="block text-xs font-semibold text-slate-400 mb-1">
-                  Observaciones de Campo (Opcional):
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ej. Entrega periódica por desgaste..."
-                  value={observaciones}
-                  onChange={e => setObservaciones(e.target.value)}
-                  className="input-field text-xs"
-                />
+              {/* Fecha y Observaciones */}
+              <div className="pt-2 border-t border-slate-700/50 space-y-2.5">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">
+                    Fecha Oficial de Entrega:
+                  </label>
+                  <input
+                    type="date"
+                    value={fechaEntregaForm}
+                    onChange={e => setFechaEntregaForm(e.target.value)}
+                    className="input-field text-xs font-bold font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">
+                    Observaciones de Campo (Opcional):
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej. Entrega periódica por desgaste..."
+                    value={observaciones}
+                    onChange={e => setObservaciones(e.target.value)}
+                    className="input-field text-xs"
+                  />
+                </div>
               </div>
             </div>
 

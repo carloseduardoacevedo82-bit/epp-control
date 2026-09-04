@@ -2,21 +2,22 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { generarZipConstancias, generarZipConstanciasMensual, normalizarNombreCarpeta } from '@/lib/structuredStorageService'
 import type { CarpetaTrabajadorConstancias, ConstanciaArchivoItem } from '@/lib/types'
-import { parseISO, startOfMonth, endOfMonth } from 'date-fns'
+import { format, parseISO } from 'date-fns'
+import { es } from 'date-fns/locale'
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
     const downloadZip = searchParams.get('zip') === 'true'
     const filtroCarpeta = searchParams.get('carpeta')
-    const filtroMes = searchParams.get('mes') // Ej: '2026-08'
+    const filtroMes = searchParams.get('mes') // Ej: '2026-09', 'todos'
 
     // Si se solicita descarga en archivo ZIP
     if (downloadZip) {
       let zipBuffer: Buffer
       let nombreZip: string
 
-      if (filtroMes) {
+      if (filtroMes && filtroMes !== 'todos' && filtroMes !== 'all') {
         zipBuffer = await generarZipConstanciasMensual(filtroMes)
         nombreZip = `Constancias_EPP_DALUPEZMAR_${filtroMes}.zip`
       } else if (filtroCarpeta) {
@@ -36,14 +37,76 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    // Listado estructurado de constancias y carpetas
-    let whereCondition = {}
-    if (filtroMes) {
-      const fechaBase = parseISO(`${filtroMes}-01`)
+    // 1. Obtener todas las entregas para construir el catálogo histórico de meses
+    const todasLasEntregas = await prisma.entrega.findMany({
+      select: {
+        id: true,
+        fechaEntrega: true,
+        detalles: { select: { costoTotal: true, cantidad: true } },
+      },
+      orderBy: { fechaEntrega: 'desc' },
+    })
+
+    // Mapear meses con datos
+    const mapaMeses = new Map<string, { mes: string; label: string; totalActas: number; totalPrendas: number; totalCosto: number }>()
+
+    const mesActualStr = format(new Date(), 'yyyy-MM')
+    // Garantizar que el mes actual siempre figure
+    const fechaActualDate = new Date()
+    const labelMesActual = format(fechaActualDate, 'MMMM yyyy', { locale: es })
+    mapaMeses.set(mesActualStr, {
+      mes: mesActualStr,
+      label: labelMesActual.charAt(0).toUpperCase() + labelMesActual.slice(1),
+      totalActas: 0,
+      totalPrendas: 0,
+      totalCosto: 0,
+    })
+
+    for (const e of todasLasEntregas) {
+      const mStr = format(new Date(e.fechaEntrega), 'yyyy-MM')
+      const labelM = format(new Date(e.fechaEntrega), 'MMMM yyyy', { locale: es })
+      const capitalLabel = labelM.charAt(0).toUpperCase() + labelM.slice(1)
+      
+      const prendas = e.detalles.reduce((acc, d) => acc + d.cantidad, 0)
+      const costo = e.detalles.reduce((acc, d) => acc + d.costoTotal, 0)
+
+      if (!mapaMeses.has(mStr)) {
+        mapaMeses.set(mStr, {
+          mes: mStr,
+          label: capitalLabel,
+          totalActas: 0,
+          totalPrendas: 0,
+          totalCosto: 0,
+        })
+      }
+
+      const mData = mapaMeses.get(mStr)!
+      mData.totalActas++
+      mData.totalPrendas += prendas
+      mData.totalCosto += costo
+    }
+
+    const mesesDisponibles = Array.from(mapaMeses.values()).sort((a, b) => b.mes.localeCompare(a.mes))
+
+    // 2. Filtro de entregas a retornar
+    let whereCondition: any = {}
+    const esFiltroHistoricoCompleto = !filtroMes || filtroMes === 'todos' || filtroMes === 'all'
+
+    if (!esFiltroHistoricoCompleto && filtroMes) {
+      // Manejar mes YYYY-MM seguro con rango UTC
+      const [yearStr, monthStr] = filtroMes.split('-')
+      const y = parseInt(yearStr, 10)
+      const m = parseInt(monthStr, 10)
+      
+      // Fecha inicio: 1er dia del mes a las 00:00:00 UTC
+      const inicioMes = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0, 0))
+      // Fecha fin: último milisegundo del mes UTC (mes m día 0 da el último día del mes m-1)
+      const finMes = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999))
+
       whereCondition = {
         fechaEntrega: {
-          gte: startOfMonth(fechaBase),
-          lte: endOfMonth(fechaBase),
+          gte: inicioMes,
+          lte: finMes,
         },
       }
     }
@@ -58,6 +121,8 @@ export async function GET(req: NextRequest) {
     })
 
     const carpetasMap = new Map<string, CarpetaTrabajadorConstancias>()
+    let inversionTotalPeriodo = 0
+    let totalPrendasPeriodo = 0
 
     for (const e of entregas) {
       const t = e.trabajador
@@ -81,6 +146,9 @@ export async function GET(req: NextRequest) {
       const costoTotal = e.detalles.reduce((s, d) => s + d.costoTotal, 0)
       const totalItems = e.detalles.reduce((s, d) => s + d.cantidad, 0)
 
+      inversionTotalPeriodo += costoTotal
+      totalPrendasPeriodo += totalItems
+
       const idPad = String(e.id).padStart(5, '0')
       const fechaStr = new Date(e.fechaEntrega).toISOString().split('T')[0]
       const nombreArchivo = `${fechaStr}_Acta_ENT-${idPad}.pdf`
@@ -103,8 +171,15 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      totalCarpetas: listaCarpetas.length,
-      totalConstancias: entregas.length,
+      periodoSeleccionado: esFiltroHistoricoCompleto ? 'todos' : filtroMes,
+      mesActual: mesActualStr,
+      mesesDisponibles,
+      resumenPeriodo: {
+        totalActas: entregas.length,
+        totalCarpetas: listaCarpetas.length,
+        totalPrendas: totalPrendasPeriodo,
+        inversionTotal: inversionTotalPeriodo,
+      },
       carpetas: listaCarpetas,
     })
   } catch (error: any) {

@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { trabajadorId, firmaDigitalUrl, observaciones, detalles, creadoPorId } = body
+    const { trabajadorId, firmaDigitalUrl, observaciones, detalles, creadoPorId, fechaEntrega } = body
 
     if (!trabajadorId || !detalles?.length) {
       return NextResponse.json({ error: 'Datos incompletos: trabajador o artículos faltantes' }, { status: 400 })
@@ -61,6 +61,8 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    const fechaReal = fechaEntrega ? new Date(fechaEntrega) : new Date()
+
     // Crear entrega + detalles en transacción
     const entrega = await prisma.$transaction(async (tx) => {
       const nuevaEntrega = await tx.entrega.create({
@@ -69,7 +71,7 @@ export async function POST(req: NextRequest) {
           firmaDigitalUrl,
           observaciones,
           creadoPorId: creadoPorId ? Number(creadoPorId) : null,
-          fechaEntrega: new Date(),
+          fechaEntrega: fechaReal,
         },
       })
 
@@ -80,7 +82,7 @@ export async function POST(req: NextRequest) {
           throw new Error(`Stock insuficiente para: ${articulo.nombre} (Disponible: ${articulo.stockActual})`)
         }
 
-        const fechaRen = addDays(new Date(), articulo.vidaUtilDias)
+        const fechaRen = addDays(fechaReal, articulo.vidaUtilDias)
 
         await tx.detalleEntrega.create({
           data: {
