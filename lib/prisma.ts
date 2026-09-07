@@ -22,8 +22,8 @@ function resolverRutaSqlite(): string {
   // 3. Buscar bases de datos SQLite existentes en el proyecto
   const candidatos = [
     path.join(process.cwd(), 'data', 'dev.db'),
-    path.join(process.cwd(), 'prisma', 'dev.db'),
     path.join(process.cwd(), 'dev.db'),
+    path.join(process.cwd(), 'prisma', 'dev.db'),
     '/app/data/dev.db',
     '/app/dev.db',
   ]
@@ -60,6 +60,14 @@ function resolverRutaSqlite(): string {
       } catch {}
 
       if (fs.existsSync(targetPath)) {
+        // Asegurar consistencia y correcciones permanentes de trabajadores en SQLite
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const { asegurarConsistenciaEnSqlite } = require('./persistenceService')
+          asegurarConsistenciaEnSqlite(targetPath)
+        } catch (syncErr) {
+          console.warn('[Prisma] Nota al verificar persistencia en targetPath:', syncErr)
+        }
         return `file:${targetPath}`
       }
     } catch (e) {
@@ -69,6 +77,13 @@ function resolverRutaSqlite(): string {
 
   // 5. Entorno local Windows / Desarrollo
   const localDb = baseExistente || path.join(process.cwd(), 'dev.db')
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { asegurarConsistenciaEnSqlite } = require('./persistenceService')
+    asegurarConsistenciaEnSqlite(localDb)
+  } catch (syncErr) {
+    console.warn('[Prisma] Nota al verificar persistencia en localDb:', syncErr)
+  }
   return `file:${localDb}`
 }
 

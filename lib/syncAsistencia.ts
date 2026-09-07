@@ -1,6 +1,7 @@
 import path from 'path'
 import fs from 'fs'
 import { prisma } from './prisma'
+import { obtenerCorreccionesPermanentes } from './persistenceService'
 
 function getAsistenciaDb(dbPath: string): any {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -117,16 +118,22 @@ export async function sincronizarTrabajadoresDesdeAsistencia(): Promise<SyncResu
   let actualizados = 0
   let inactivados = 0
   const detalles: SyncResult['detalles'] = []
+  const correccionesGuardadas = obtenerCorreccionesPermanentes()
 
   for (const emp of employees) {
     const dni = String(emp.document_number).trim()
     const codigoFotocheck = emp.employee_code || (emp.badge_code ? String(emp.badge_code).replace('BADGE-', '') : null)
-    const nombres = String(emp.first_name || '').trim()
-    const apellidos = String(emp.last_name || '').trim()
-    const cargo = emp.position_name || 'Operario de Producción'
-    const area = (emp.position_name && emp.position_name.toUpperCase().includes('TROQUELADO'))
-      ? 'Troquelado de Anillas'
-      : (emp.department_name || 'Producción')
+    
+    // Si el colaborador tiene corrección manual permanente registrada, respetarla estrictamente
+    const correccion = correccionesGuardadas[dni]
+    const nombres = correccion?.nombres || String(emp.first_name || '').trim()
+    const apellidos = correccion?.apellidos || String(emp.last_name || '').trim()
+    const cargo = (correccion?.bloqueadoManual && correccion?.cargo) ? correccion.cargo : (emp.position_name || 'Operario de Producción')
+    const area = (correccion?.bloqueadoManual && correccion?.area) ? correccion.area : (
+      (emp.position_name && emp.position_name.toUpperCase().includes('TROQUELADO'))
+        ? 'Troquelado de Anillas'
+        : (emp.department_name || 'Producción')
+    )
     const estado = (emp.status || 'ACTIVE').toUpperCase() === 'ACTIVE' ? 'activo' : 'inactivo'
     const grupoSanguineo = emp.blood_type || 'O+'
     const contactoEmergencia = emp.emergency_contact_phone || '+51 911111111'

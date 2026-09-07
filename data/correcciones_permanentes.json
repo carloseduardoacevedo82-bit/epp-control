@@ -1,0 +1,32 @@
+{
+  "74405998": {
+    "dni": "74405998",
+    "nombres": "Renzo Braulio",
+    "apellidos": "Cordova Degollar",
+    "cargo": "Produccion",
+    "area": "Producción",
+    "bloqueadoManual": true,
+    "fechaCorreccion": "2026-09-07T23:30:00.000Z"
+  },
+  "80184449": {
+    "dni": "80184449",
+    "nombres": "Joel",
+    "apellidos": "Fernandez Merino",
+    "bloqueadoManual": true,
+    "fechaCorreccion": "2026-09-07T23:30:00.000Z"
+  },
+  "008270860": {
+    "dni": "008270860",
+    "nombres": "Davis Gabriel",
+    "apellidos": "Gonzalez Fernandez",
+    "bloqueadoManual": true,
+    "fechaCorreccion": "2026-09-07T23:30:00.000Z"
+  },
+  "61089730": {
+    "dni": "61089730",
+    "nombres": "Felipe",
+    "apellidos": "Rosales Chavez",
+    "bloqueadoManual": true,
+    "fechaCorreccion": "2026-09-07T23:30:00.000Z"
+  }
+}
