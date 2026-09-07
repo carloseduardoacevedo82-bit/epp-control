@@ -38,7 +38,17 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { trabajadorId, firmaDigitalUrl, observaciones, detalles, creadoPorId, fechaEntrega } = body
+    const {
+      trabajadorId,
+      firmaDigitalUrl,
+      firmaSupervisorUrl,
+      supervisorNombre,
+      supervisorCargo,
+      observaciones,
+      detalles,
+      creadoPorId,
+      fechaEntrega,
+    } = body
 
     if (!trabajadorId || !detalles?.length) {
       return NextResponse.json({ error: 'Datos incompletos: trabajador o artículos faltantes' }, { status: 400 })
@@ -69,6 +79,10 @@ export async function POST(req: NextRequest) {
         data: {
           trabajadorId,
           firmaDigitalUrl,
+          firmaSupervisorUrl: firmaSupervisorUrl || null,
+          supervisorNombre: supervisorNombre || null,
+          supervisorCargo: supervisorCargo || null,
+          fechaFirmaSupervisor: firmaSupervisorUrl ? new Date() : null,
           observaciones,
           creadoPorId: creadoPorId ? Number(creadoPorId) : null,
           fechaEntrega: fechaReal,

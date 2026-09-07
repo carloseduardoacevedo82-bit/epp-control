@@ -29,9 +29,13 @@ import {
   Clock,
   ArrowLeft,
   Users,
+  PenLine,
+  Check,
 } from 'lucide-react'
 import type { CarpetaTrabajadorConstancias, ConstanciaArchivoItem, Entrega } from '@/lib/types'
+import { SUPERVISORES_OFICIALES } from '@/lib/types'
 import { generarActaEntregaPDF, obtenerActaPDFBlobUrl } from '@/lib/generatePDF'
+import SignaturePadModal from '@/components/ui/SignaturePadModal'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import Link from 'next/link'
@@ -77,6 +81,121 @@ export default function ConstanciasPage() {
   const [pdfModalUrl, setPdfModalUrl] = useState<string | null>(null)
   const [pdfModalTitulo, setPdfModalTitulo] = useState<string>('')
   const [cargandoPdfId, setCargandoPdfId] = useState<number | null>(null)
+
+  // Estados para Firma de Supervisor desde Constancias
+  const [actaAFirmar, setActaAFirmar] = useState<ConstanciaArchivoItem | null>(null)
+  const [modalFirmarSupervisorAbierto, setModalFirmarSupervisorAbierto] = useState(false)
+  const [supervisorSeleccionadoId, setSupervisorSeleccionadoId] = useState<string>('daiam_rustasehenko')
+  const [supervisorNombrePersonalizado, setSupervisorNombrePersonalizado] = useState<string>('')
+  const [supervisorCargoPersonalizado, setSupervisorCargoPersonalizado] = useState<string>('')
+  const [firmaSupervisorBase64, setFirmaSupervisorBase64] = useState<string | null>(null)
+  const [padFirmaSupervisorAbierto, setPadFirmaSupervisorAbierto] = useState(false)
+  const [guardandoFirmaSupervisor, setGuardandoFirmaSupervisor] = useState(false)
+  const [recordarFirmaSupervisor, setRecordarFirmaSupervisor] = useState(true)
+  const [mensajeExitoFirma, setMensajeExitoFirma] = useState<string>('')
+
+  // Cargar firma guardada al cambiar de supervisor
+  useEffect(() => {
+    if (typeof window !== 'undefined' && modalFirmarSupervisorAbierto) {
+      const saved = localStorage.getItem(`epp_firma_sup_${supervisorSeleccionadoId}`)
+      if (saved) {
+        setFirmaSupervisorBase64(saved)
+      } else if (actaAFirmar?.firmaSupervisorUrl) {
+        setFirmaSupervisorBase64(actaAFirmar.firmaSupervisorUrl)
+      } else {
+        setFirmaSupervisorBase64(null)
+      }
+    }
+  }, [supervisorSeleccionadoId, modalFirmarSupervisorAbierto])
+
+  const getSupervisorActual = (): { nombre: string; cargo: string } => {
+    if (supervisorSeleccionadoId === 'otro') {
+      return {
+        nombre: supervisorNombrePersonalizado.trim() || 'Supervisor Autorizado',
+        cargo: supervisorCargoPersonalizado.trim() || 'Supervisor de Operaciones',
+      }
+    }
+    const sup = SUPERVISORES_OFICIALES.find(s => s.id === supervisorSeleccionadoId)
+    if (sup) {
+      return { nombre: sup.nombre, cargo: sup.cargo }
+    }
+    return {
+      nombre: 'Daiam Lisette Rustasehenko Calero',
+      cargo: 'Supervisora General',
+    }
+  }
+
+  const handleAbrirModalFirmaSupervisor = (archivo: ConstanciaArchivoItem) => {
+    setActaAFirmar(archivo)
+    const initialSup = 'daiam_rustasehenko'
+    setSupervisorSeleccionadoId(initialSup)
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(`epp_firma_sup_${initialSup}`)
+      setFirmaSupervisorBase64(saved || archivo.firmaSupervisorUrl || null)
+    } else {
+      setFirmaSupervisorBase64(archivo.firmaSupervisorUrl || null)
+    }
+    setModalFirmarSupervisorAbierto(true)
+    setMensajeExitoFirma('')
+  }
+
+  const handleGuardarFirmaSupervisor = async () => {
+    if (!actaAFirmar) return
+    if (!firmaSupervisorBase64) {
+      alert('Debe estampar la firma del supervisor en el recuadro antes de guardar.')
+      return
+    }
+
+    const sup = getSupervisorActual()
+    setGuardandoFirmaSupervisor(true)
+    try {
+      const res = await fetch(`/api/entregas/${actaAFirmar.entregaId}/firmar-supervisor`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firmaSupervisorUrl: firmaSupervisorBase64,
+          supervisorNombre: sup.nombre,
+          supervisorCargo: sup.cargo,
+        }),
+      })
+
+      if (!res.ok) {
+        const d = await res.json()
+        throw new Error(d.error || 'Error al guardar la firma')
+      }
+
+      if (recordarFirmaSupervisor && typeof window !== 'undefined') {
+        localStorage.setItem(`epp_firma_sup_${supervisorSeleccionadoId}`, firmaSupervisorBase64)
+      }
+
+      // Actualizar el estado local de las constancias inmediatamente
+      setCarpetas(prevCarpetas =>
+        prevCarpetas.map(carp => ({
+          ...carp,
+          archivos: carp.archivos.map(arch =>
+            arch.id === actaAFirmar.id
+              ? {
+                  ...arch,
+                  firmaSupervisorUrl: firmaSupervisorBase64,
+                  supervisorNombre: sup.nombre,
+                  supervisorCargo: sup.cargo,
+                }
+              : arch
+          ),
+        }))
+      )
+
+      setMensajeExitoFirma(`¡Firma de ${sup.nombre} registrada correctamente! El PDF oficial ha sido actualizado.`)
+      setTimeout(() => {
+        setModalFirmarSupervisorAbierto(false)
+        setMensajeExitoFirma('')
+      }, 1500)
+    } catch (e: any) {
+      alert(e.message || 'Error al procesar la firma del supervisor')
+    } finally {
+      setGuardandoFirmaSupervisor(false)
+    }
+  }
 
   const esMesActual = periodoSeleccionado === mesActualStr
   const esHistoricoCompleto = periodoSeleccionado === 'todos'
@@ -648,8 +767,27 @@ export default function ConstanciasPage() {
 
                         <div className="flex flex-wrap items-center gap-2 self-end sm:self-center">
                           <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-800 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/60 px-2.5 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-800/40">
-                            <CheckCircle2 size={11} className="text-emerald-700" /> Firma Legal
+                            <CheckCircle2 size={11} className="text-emerald-700" /> Colaborador
                           </span>
+
+                          {archivo.firmaSupervisorUrl ? (
+                            <button
+                              onClick={() => handleAbrirModalFirmaSupervisor(archivo)}
+                              className="inline-flex items-center gap-1 text-[11px] font-black text-blue-800 dark:text-blue-300 bg-blue-100 dark:bg-blue-950/60 hover:bg-blue-200 dark:hover:bg-blue-900/60 px-2.5 py-0.5 rounded-full border border-blue-300 dark:border-blue-800/40 cursor-pointer transition"
+                              title={`Firmado por ${archivo.supervisorNombre || 'Supervisor'} (${archivo.supervisorCargo || 'SST'}). Clic para ver o re-firmar.`}
+                            >
+                              <ShieldCheck size={12} className="text-blue-600 dark:text-cyan-400" />
+                              <span>Sup: {archivo.supervisorNombre?.split(' ')[0] || 'Firmado'}</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleAbrirModalFirmaSupervisor(archivo)}
+                              className="px-2.5 py-1 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 text-xs font-black flex items-center gap-1 transition shadow-xs cursor-pointer"
+                              title="Firmar constancia pendiente como supervisor"
+                            >
+                              <PenLine size={12} /> ✍️ Firmar como Supervisor
+                            </button>
+                          )}
 
                           <a
                             href={`/api/entregas/${archivo.entregaId}/pdf`}
@@ -740,6 +878,197 @@ export default function ConstanciasPage() {
           </div>
         </div>
       )}
+
+      {/* ── MODAL PARA FIRMAR COMO SUPERVISOR ──────────────────────────── */}
+      {modalFirmarSupervisorAbierto && actaAFirmar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-700 w-full max-w-lg rounded-2xl shadow-2xl flex flex-col overflow-hidden text-xs">
+            {/* Header */}
+            <div className="px-5 py-4 bg-slate-800 border-b border-slate-700 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-cyan-600/20 text-cyan-400 border border-cyan-500/30">
+                  <ShieldCheck size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-white">
+                    Firma de Supervisor en Constancia
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Acta N° ENT-{String(actaAFirmar.entregaId).padStart(5, '0')} • {actaAFirmar.trabajadorNombre}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setModalFirmarSupervisorAbierto(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+              {mensajeExitoFirma && (
+                <div className="p-3 bg-emerald-950/80 border border-emerald-700 text-emerald-300 rounded-xl font-bold flex items-center gap-2">
+                  <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                  <span>{mensajeExitoFirma}</span>
+                </div>
+              )}
+
+              {/* Resumen del acta */}
+              <div className="p-3 bg-slate-800/60 rounded-xl border border-slate-700/60 space-y-1 text-slate-300">
+                <p><strong>Colaborador:</strong> {actaAFirmar.trabajadorNombre} (DNI: {actaAFirmar.trabajadorDni})</p>
+                <p><strong>Fecha de Emisión:</strong> {new Date(actaAFirmar.fechaEntrega).toLocaleDateString('es-PE')}</p>
+                <p><strong>Detalle:</strong> {actaAFirmar.totalItems} EPPs entregados • S/ {actaAFirmar.costoTotal.toFixed(2)}</p>
+              </div>
+
+              {/* Selector de Supervisor */}
+              <div className="space-y-1.5">
+                <label className="block font-bold text-slate-200">
+                  Seleccionar Quién Firma como Supervisor:
+                </label>
+                <select
+                  value={supervisorSeleccionadoId}
+                  onChange={e => setSupervisorSeleccionadoId(e.target.value)}
+                  className="input-field text-xs bg-slate-950 border-slate-700 text-white cursor-pointer font-semibold"
+                >
+                  {SUPERVISORES_OFICIALES.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.nombre} — {s.cargo}
+                    </option>
+                  ))}
+                  <option value="otro">Otro Supervisor / Cargo Personalizado...</option>
+                </select>
+              </div>
+
+              {supervisorSeleccionadoId === 'otro' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-0.5">Nombre y Apellidos:</label>
+                    <input
+                      type="text"
+                      placeholder="Ej. Ing. Juan Pérez"
+                      value={supervisorNombrePersonalizado}
+                      onChange={e => setSupervisorNombrePersonalizado(e.target.value)}
+                      className="input-field text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-0.5">Cargo / Puesto:</label>
+                    <input
+                      type="text"
+                      placeholder="Ej. Supervisor de Operaciones"
+                      value={supervisorCargoPersonalizado}
+                      onChange={e => setSupervisorCargoPersonalizado(e.target.value)}
+                      className="input-field text-xs"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Recuadro de Firma */}
+              <div className="space-y-2">
+                <label className="block font-bold text-slate-200">
+                  Trazo de Firma del Supervisor:
+                </label>
+
+                {firmaSupervisorBase64 ? (
+                  <div className="relative border-2 border-emerald-500/60 rounded-xl p-3 bg-white flex flex-col items-center">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={firmaSupervisorBase64} alt="Firma Supervisor" className="max-h-24 object-contain" />
+                    <span className="text-[10px] font-semibold text-slate-800 mt-1">
+                      {getSupervisorActual().nombre} • {getSupervisorActual().cargo}
+                    </span>
+                    <div className="absolute top-2 right-2 flex items-center gap-2">
+                      <button
+                        onClick={() => setPadFirmaSupervisorAbierto(true)}
+                        className="text-[10px] text-blue-700 font-bold hover:underline"
+                      >
+                        Cambiar
+                      </button>
+                      <button
+                        onClick={() => {
+                          setFirmaSupervisorBase64(null)
+                          if (typeof window !== 'undefined') {
+                            localStorage.removeItem(`epp_firma_sup_${supervisorSeleccionadoId}`)
+                          }
+                        }}
+                        className="text-[10px] text-red-600 font-bold hover:underline"
+                      >
+                        Borrar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setPadFirmaSupervisorAbierto(true)}
+                    className="w-full py-7 border-2 border-dashed border-cyan-500/50 hover:border-cyan-400 rounded-xl bg-cyan-950/20 flex flex-col items-center justify-center gap-1.5 text-cyan-300 hover:text-white transition group"
+                  >
+                    <PenLine className="w-7 h-7 group-hover:scale-110 transition text-cyan-400" />
+                    <span className="font-bold">
+                      ✍️ Dibujar Firma como {getSupervisorActual().nombre}
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      Toque para firmar con el dedo o mouse en pantalla
+                    </span>
+                  </button>
+                )}
+
+                <label className="flex items-center gap-2 text-[11px] text-slate-400 cursor-pointer select-none pt-1">
+                  <input
+                    type="checkbox"
+                    checked={recordarFirmaSupervisor}
+                    onChange={e => setRecordarFirmaSupervisor(e.target.checked)}
+                    className="rounded border-slate-700 text-blue-600 focus:ring-0"
+                  />
+                  <span>Recordar esta firma para futuras constancias en este equipo</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="p-4 bg-slate-800 border-t border-slate-700 flex justify-end gap-2.5">
+              <button
+                onClick={() => setModalFirmarSupervisorAbierto(false)}
+                className="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleGuardarFirmaSupervisor}
+                disabled={guardandoFirmaSupervisor || !firmaSupervisorBase64}
+                className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 text-white font-bold flex items-center gap-1.5 shadow-md shadow-emerald-500/20 transition active:scale-95"
+              >
+                {guardandoFirmaSupervisor ? (
+                  <>
+                    <RefreshCw size={14} className="animate-spin" /> Guardando y Actualizando PDF...
+                  </>
+                ) : (
+                  <>
+                    <Check size={14} /> Guardar Firma y Actualizar Constancia
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal SignaturePad para el supervisor */}
+      <SignaturePadModal
+        isOpen={padFirmaSupervisorAbierto}
+        onClose={() => setPadFirmaSupervisorAbierto(false)}
+        onConfirm={sig => {
+          setFirmaSupervisorBase64(sig)
+          if (recordarFirmaSupervisor && typeof window !== 'undefined') {
+            localStorage.setItem(`epp_firma_sup_${supervisorSeleccionadoId}`, sig)
+          }
+        }}
+        title="Firma del Supervisor / Responsable"
+        workerName={getSupervisorActual().nombre}
+        signerRole={`${getSupervisorActual().cargo} • DALUPEZMAR S.A.C.`}
+      />
     </div>
   )
 }

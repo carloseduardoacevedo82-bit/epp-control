@@ -16,16 +16,22 @@ interface SignaturePadModalProps {
   isOpen: boolean
   onClose: () => void
   onConfirm: (signatureBase64: string) => void
-  workerName: string
-  workerDni: string
+  workerName?: string
+  workerDni?: string
+  title?: string
+  subtitle?: string
+  signerRole?: string
 }
 
 export default function SignaturePadModal({
   isOpen,
   onClose,
   onConfirm,
-  workerName,
-  workerDni,
+  workerName = '',
+  workerDni = '',
+  title = 'Firma Táctil de Conformidad',
+  subtitle,
+  signerRole,
 }: SignaturePadModalProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [isDrawing, setIsDrawing] = useState(false)
@@ -169,10 +175,15 @@ export default function SignaturePadModal({
             </div>
             <div>
               <h3 className="text-base font-bold text-white leading-tight">
-                Firma Táctil de Conformidad
+                {title}
               </h3>
               <p className="text-xs text-slate-400">
-                Colaborador: <span className="text-blue-300 font-semibold">{workerName}</span> (DNI: {workerDni})
+                {subtitle || (
+                  <>
+                    <span className="text-blue-300 font-semibold">{workerName}</span>
+                    {signerRole ? ` • ${signerRole}` : workerDni ? ` (DNI: ${workerDni})` : ''}
+                  </>
+                )}
               </p>
             </div>
           </div>
@@ -220,8 +231,8 @@ export default function SignaturePadModal({
 
             {/* Línea guía de firma */}
             <div className="absolute bottom-8 left-8 right-8 border-b-2 border-slate-300/80 pointer-events-none flex justify-between items-center text-[10px] text-slate-400 px-2">
-              <span>Firma del titular</span>
-              <span>DNI: {workerDni}</span>
+              <span>Firma: {workerName || 'Titular'}</span>
+              <span>{signerRole || (workerDni ? `DNI: ${workerDni}` : '')}</span>
             </div>
 
             {!hasDrawn && (

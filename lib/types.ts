@@ -40,6 +40,33 @@ export const CATEGORIAS_EPP = [
   'Herramientas / Accesorios',
 ] as const
 
+export interface SupervisorOficial {
+  id: string
+  nombre: string
+  cargo: string
+  dni?: string
+}
+
+export const SUPERVISORES_OFICIALES: SupervisorOficial[] = [
+  {
+    id: 'daiam_rustasehenko',
+    nombre: 'Daiam Lisette Rustasehenko Calero',
+    cargo: 'Supervisora General',
+    dni: '003011701',
+  },
+  {
+    id: 'carlos_acevedo',
+    nombre: 'Carlos Eduardo Acevedo Mendoza',
+    cargo: 'Supervisor General',
+    dni: '005704276',
+  },
+  {
+    id: 'supervisor_sst',
+    nombre: 'Supervisor SST',
+    cargo: 'Seguridad y Salud en el Trabajo (SSOMA)',
+  },
+]
+
 export interface UsuarioSession {
   id: number
   email: string
@@ -105,6 +132,10 @@ export interface Entrega {
   trabajador: Trabajador
   fechaEntrega: string
   firmaDigitalUrl?: string | null
+  firmaSupervisorUrl?: string | null
+  supervisorNombre?: string | null
+  supervisorCargo?: string | null
+  fechaFirmaSupervisor?: string | null
   observaciones?: string | null
   rutaPdf?: string | null
   hashVerificacion?: string | null
@@ -127,6 +158,10 @@ export interface ConstanciaArchivoItem {
   costoTotal: number
   tamanoKb?: number
   urlDescarga?: string
+  firmaDigitalUrl?: string | null
+  firmaSupervisorUrl?: string | null
+  supervisorNombre?: string | null
+  supervisorCargo?: string | null
 }
 
 export interface CarpetaTrabajadorConstancias {

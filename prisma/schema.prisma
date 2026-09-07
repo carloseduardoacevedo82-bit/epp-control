@@ -65,15 +65,19 @@ model Entrega {
   trabajadorId       Int
   trabajador         Trabajador          @relation(fields: [trabajadorId], references: [id])
   fechaEntrega       DateTime            @default(now())
-  firmaDigitalUrl    String?             // base64 PNG
-  observaciones      String?
-  rutaPdf            String?             // Ruta relativa estructurada del PDF generado
-  hashVerificacion   String?             // Código / Hash de integridad
-  creadoPorId        Int?
-  creadoPor          Usuario?            @relation(fields: [creadoPorId], references: [id])
-  createdAt          DateTime            @default(now())
-  detalles           DetalleEntrega[]
-  constanciaArchivos ConstanciaArchivo[]
+  firmaDigitalUrl      String?             // base64 PNG (firma del colaborador)
+  firmaSupervisorUrl   String?             // base64 PNG (firma del supervisor)
+  supervisorNombre     String?             // Nombre del supervisor que firma
+  supervisorCargo      String?             // Cargo del supervisor (Supervisora General, Supervisor SST, etc.)
+  fechaFirmaSupervisor DateTime?           // Fecha/hora de firma del supervisor
+  observaciones        String?
+  rutaPdf              String?             // Ruta relativa estructurada del PDF generado
+  hashVerificacion     String?             // Código / Hash de integridad
+  creadoPorId          Int?
+  creadoPor            Usuario?            @relation(fields: [creadoPorId], references: [id])
+  createdAt            DateTime            @default(now())
+  detalles             DetalleEntrega[]
+  constanciaArchivos   ConstanciaArchivo[]
 }
 
 model DetalleEntrega {

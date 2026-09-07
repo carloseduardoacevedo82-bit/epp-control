@@ -239,12 +239,21 @@ export function crearDocumentoActaPDF(entrega: Entrega): jsPDF {
   // Caja para firma de SSOMA / Entrega
   doc.roundedRect(pageWidth - margin - 78, firmaY, 78, 38, 2, 2, 'FD')
 
-  // Estampar Firma Digital en Canvas si existe
+  // Estampar Firma Digital en Canvas si existe (Trabajador)
   if (entrega.firmaDigitalUrl && entrega.firmaDigitalUrl.startsWith('data:image')) {
     try {
       doc.addImage(entrega.firmaDigitalUrl, 'PNG', margin + 4, firmaY + 2, 70, 22)
     } catch {
       // Firma no disponible
+    }
+  }
+
+  // Estampar Firma Digital del Supervisor si existe
+  if (entrega.firmaSupervisorUrl && entrega.firmaSupervisorUrl.startsWith('data:image')) {
+    try {
+      doc.addImage(entrega.firmaSupervisorUrl, 'PNG', pageWidth - margin - 74, firmaY + 2, 70, 22)
+    } catch {
+      // Firma supervisor no disponible
     }
   }
 
@@ -258,14 +267,24 @@ export function crearDocumentoActaPDF(entrega: Entrega): jsPDF {
   doc.setFontSize(7)
   doc.text(`${t.apellidos}, ${t.nombres} | DNI: ${t.dni}`, margin + 39, firmaY + 34, { align: 'center' })
 
-  // Línea y datos SSOMA
+  // Línea y datos SSOMA / Supervisor
   doc.line(pageWidth - margin - 72, firmaY + 26, pageWidth - margin - 6, firmaY + 26)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(7.5)
-  doc.text('Supervisor SSOMA / Almacén Central', pageWidth - margin - 39, firmaY + 30, { align: 'center' })
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7)
-  doc.text('DALUPEZMAR SERVICIOS INDUSTRIALES S.A.C.', pageWidth - margin - 39, firmaY + 34, { align: 'center' })
+  if (entrega.supervisorNombre) {
+    doc.text(entrega.supervisorNombre, pageWidth - margin - 39, firmaY + 30, { align: 'center' })
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(6.8)
+    const cargoTexto = entrega.supervisorCargo
+      ? `${entrega.supervisorCargo} • DALUPEZMAR S.A.C.`
+      : 'DALUPEZMAR SERVICIOS INDUSTRIALES S.A.C.'
+    doc.text(cargoTexto, pageWidth - margin - 39, firmaY + 34, { align: 'center' })
+  } else {
+    doc.text('Supervisor SSOMA / Almacén Central', pageWidth - margin - 39, firmaY + 30, { align: 'center' })
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7)
+    doc.text('DALUPEZMAR SERVICIOS INDUSTRIALES S.A.C.', pageWidth - margin - 39, firmaY + 34, { align: 'center' })
+  }
 
   // ── PIE DE PÁGINA Y CÓDIGO DE INTEGRIDAD ─────────────────────────────────
   doc.setFillColor(15, 23, 42)

@@ -164,6 +164,10 @@ export async function GET(req: NextRequest) {
         fechaEntrega: e.fechaEntrega.toISOString(),
         totalItems,
         costoTotal,
+        firmaDigitalUrl: e.firmaDigitalUrl,
+        firmaSupervisorUrl: e.firmaSupervisorUrl,
+        supervisorNombre: e.supervisorNombre,
+        supervisorCargo: e.supervisorCargo,
       })
     }
 

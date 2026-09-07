@@ -27,7 +27,7 @@ import {
   Save,
 } from 'lucide-react'
 import type { Trabajador, ArticuloEPP, Entrega } from '@/lib/types'
-import { AREAS, TALLAS_CALZADO, TALLAS_ROPA, TALLAS_PANTALON } from '@/lib/types'
+import { AREAS, TALLAS_CALZADO, TALLAS_ROPA, TALLAS_PANTALON, SUPERVISORES_OFICIALES } from '@/lib/types'
 import { format, addDays } from 'date-fns'
 import { es } from 'date-fns/locale'
 import SignaturePadModal from '@/components/ui/SignaturePadModal'
@@ -123,8 +123,46 @@ function NuevaEntregaContent() {
   const [observaciones, setObservaciones] = useState('')
   const [firmaBase64, setFirmaBase64] = useState<string | null>(null)
   const [showSignatureModal, setShowSignatureModal] = useState(false)
+  
+  // Firma del Supervisor
+  const [supervisorSeleccionadoId, setSupervisorSeleccionadoId] = useState<string>('daiam_rustasehenko')
+  const [supervisorNombrePersonalizado, setSupervisorNombrePersonalizado] = useState<string>('')
+  const [supervisorCargoPersonalizado, setSupervisorCargoPersonalizado] = useState<string>('')
+  const [firmaSupervisorBase64, setFirmaSupervisorBase64] = useState<string | null>(null)
+  const [showSignatureModalSupervisor, setShowSignatureModalSupervisor] = useState(false)
+  const [recordarFirmaSupervisor, setRecordarFirmaSupervisor] = useState(true)
+
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
+
+  // Cargar firma guardada del supervisor al cambiar de selección
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedSig = localStorage.getItem(`epp_firma_sup_${supervisorSeleccionadoId}`)
+      if (savedSig) {
+        setFirmaSupervisorBase64(savedSig)
+      } else {
+        setFirmaSupervisorBase64(null)
+      }
+    }
+  }, [supervisorSeleccionadoId])
+
+  const getSupervisorActual = (): { nombre: string; cargo: string } => {
+    if (supervisorSeleccionadoId === 'otro') {
+      return {
+        nombre: supervisorNombrePersonalizado.trim() || 'Supervisor Autorizado',
+        cargo: supervisorCargoPersonalizado.trim() || 'Supervisor de Operaciones',
+      }
+    }
+    const sup = SUPERVISORES_OFICIALES.find(s => s.id === supervisorSeleccionadoId)
+    if (sup) {
+      return { nombre: sup.nombre, cargo: sup.cargo }
+    }
+    return {
+      nombre: 'Daiam Lisette Rustasehenko Calero',
+      cargo: 'Supervisora General',
+    }
+  }
 
   // Step 4: Completed
   const [entregaCompletada, setEntregaCompletada] = useState<Entrega | null>(null)
@@ -225,9 +263,13 @@ function NuevaEntregaContent() {
     setError('')
 
     try {
+      const supActual = getSupervisorActual()
       const body = {
         trabajadorId: trabajadorSeleccionado.id,
         firmaDigitalUrl: firmaBase64,
+        firmaSupervisorUrl: firmaSupervisorBase64 || null,
+        supervisorNombre: firmaSupervisorBase64 ? supActual.nombre : null,
+        supervisorCargo: firmaSupervisorBase64 ? supActual.cargo : null,
         observaciones: observaciones || null,
         fechaEntrega: fechaEntregaForm ? new Date(`${fechaEntregaForm}T12:00:00`).toISOString() : undefined,
         detalles: items.map(i => ({
@@ -711,14 +753,19 @@ function NuevaEntregaContent() {
         </div>
       )}
 
-      {/* ── PASO 3: FIRMA TÁCTIL Y CONFIRMACIÓN ───────────────────────────────── */}
+      {/* PASO 3: FIRMA TACTIL Y CONFIRMACION */}
       {step === 3 && (
         <div className="card p-5 sm:p-6 space-y-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold text-white flex items-center gap-2">
-              <PenLine className="w-5 h-5 text-blue-400" />
-              Paso 3: Captura de Firma Digital del Colaborador
-            </h2>
+            <div>
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <PenLine className="w-5 h-5 text-blue-400" />
+                Paso 3: Validación y Firmas Digitales de Entrega
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Firma del colaborador y aprobación del supervisor según Ley N° 29783 SSOMA
+              </p>
+            </div>
             <button
               onClick={() => setStep(2)}
               className="text-xs text-slate-400 hover:text-white flex items-center gap-1"
@@ -727,74 +774,85 @@ function NuevaEntregaContent() {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Resumen de la entrega */}
-            <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700/60 space-y-3">
-              <p className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                Datos del Acta
-              </p>
-              <div className="text-xs space-y-1.5 text-slate-300">
-                <p>
-                  <strong>Colaborador:</strong> {trabajadorSeleccionado?.apellidos},{' '}
-                  {trabajadorSeleccionado?.nombres}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Columna Izquierda: Datos del Acta y Fecha */}
+            <div className="space-y-4">
+              <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700/60 space-y-3">
+                <p className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" /> Datos del Acta Oficial
                 </p>
-                <p>
-                  <strong>DNI:</strong> {trabajadorSeleccionado?.dni}
-                </p>
-                <p>
-                  <strong>Área / Puesto:</strong> {trabajadorSeleccionado?.area} (
-                  {trabajadorSeleccionado?.cargo})
-                </p>
-                <p>
-                  <strong>Total Prendas:</strong> {totalCantidad} unidades ({items.length} tipos)
-                </p>
-                <p>
-                  <strong>Valorización:</strong> S/ {totalCosto.toFixed(2)}
-                </p>
-              </div>
-
-              {/* Fecha y Observaciones */}
-              <div className="pt-2 border-t border-slate-700/50 space-y-2.5">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 mb-1">
-                    Fecha Oficial de Entrega:
-                  </label>
-                  <input
-                    type="date"
-                    value={fechaEntregaForm}
-                    onChange={e => setFechaEntregaForm(e.target.value)}
-                    className="input-field text-xs font-bold font-mono"
-                  />
+                <div className="text-xs space-y-1.5 text-slate-300">
+                  <p>
+                    <strong>Colaborador:</strong> {trabajadorSeleccionado?.apellidos},{' '}
+                    {trabajadorSeleccionado?.nombres}
+                  </p>
+                  <p>
+                    <strong>DNI / Doc.:</strong> {trabajadorSeleccionado?.dni}
+                  </p>
+                  <p>
+                    <strong>Área / Puesto:</strong> {trabajadorSeleccionado?.area} (
+                    {trabajadorSeleccionado?.cargo})
+                  </p>
+                  <p>
+                    <strong>Total Prendas:</strong> {totalCantidad} unidades ({items.length} tipos de EPP)
+                  </p>
+                  <p>
+                    <strong>Valorización Total:</strong>{' '}
+                    <span className="font-mono text-emerald-400 font-bold">
+                      S/ {totalCosto.toFixed(2)}
+                    </span>
+                  </p>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 mb-1">
-                    Observaciones de Campo (Opcional):
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ej. Entrega periódica por desgaste..."
-                    value={observaciones}
-                    onChange={e => setObservaciones(e.target.value)}
-                    className="input-field text-xs"
-                  />
+                {/* Fecha y Observaciones */}
+                <div className="pt-2 border-t border-slate-700/50 space-y-2.5">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1">
+                      Fecha Oficial de Entrega:
+                    </label>
+                    <input
+                      type="date"
+                      value={fechaEntregaForm}
+                      onChange={e => setFechaEntregaForm(e.target.value)}
+                      className="input-field text-xs font-bold font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1">
+                      Observaciones de Campo (Opcional):
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ej. Entrega periódica por desgaste / renovación oficial..."
+                      value={observaciones}
+                      onChange={e => setObservaciones(e.target.value)}
+                      className="input-field text-xs"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Panel de Firma */}
-            <div className="flex flex-col justify-between space-y-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1.5">
-                  Firma de Conformidad (Ley N° 29783 SSOMA)
-                </label>
+              {/* Firma del Colaborador */}
+              <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700/60 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                    <User className="w-3.5 h-3.5 text-blue-400" />
+                    1. Firma del Colaborador (Beneficiario) *
+                  </label>
+                  {firmaBase64 && (
+                    <span className="text-[10px] bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 px-2 py-0.5 rounded-md font-semibold">
+                      ✓ Firmado
+                    </span>
+                  )}
+                </div>
 
                 {firmaBase64 ? (
                   <div className="relative border-2 border-emerald-500/60 rounded-xl p-3 bg-white flex flex-col items-center">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={firmaBase64} alt="Firma" className="max-h-28 object-contain" />
-                    <span className="text-[10px] font-semibold text-emerald-800 mt-1">
-                      ✓ Firma estampada y validada
+                    <img src={firmaBase64} alt="Firma Colaborador" className="max-h-24 object-contain" />
+                    <span className="text-[10px] font-semibold text-slate-700 mt-1">
+                      {trabajadorSeleccionado?.apellidos}, {trabajadorSeleccionado?.nombres} (DNI: {trabajadorSeleccionado?.dni})
                     </span>
                     <button
                       onClick={() => setFirmaBase64(null)}
@@ -807,40 +865,175 @@ function NuevaEntregaContent() {
                   <button
                     type="button"
                     onClick={() => setShowSignatureModal(true)}
-                    className="w-full py-8 border-2 border-dashed border-blue-500/50 hover:border-blue-400 rounded-xl bg-blue-950/20 flex flex-col items-center justify-center gap-2 text-blue-300 hover:text-white transition group"
+                    className="w-full py-6 border-2 border-dashed border-blue-500/50 hover:border-blue-400 rounded-xl bg-blue-950/20 flex flex-col items-center justify-center gap-1.5 text-blue-300 hover:text-white transition group"
                   >
-                    <PenLine className="w-8 h-8 group-hover:scale-110 transition text-blue-400" />
-                    <span className="text-xs font-bold">Abrir Pad de Firma Táctil Full-Screen</span>
+                    <PenLine className="w-7 h-7 group-hover:scale-110 transition text-blue-400" />
+                    <span className="text-xs font-bold">Abrir Pad de Firma del Colaborador</span>
                     <span className="text-[10px] text-slate-400">
-                      Toque para firmar con el dedo o stylus
+                      El trabajador firma en pantalla con dedo o stylus
                     </span>
                   </button>
                 )}
               </div>
+            </div>
 
-              {/* Botón de Emisión Final */}
-              <button
-                onClick={handleFinalizarEntrega}
-                disabled={guardando || !firmaBase64}
-                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 transition transform active:scale-95"
-              >
-                {guardando ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin" /> Generando Constancia Legal y
-                    Archivando...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle size={16} /> Emitir Acta Oficial y Generar PDF
-                  </>
+            {/* Columna Derecha: Firma y Selección del Supervisor */}
+            <div className="flex flex-col justify-between space-y-4">
+              <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700/60 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
+                    2. Firma del Supervisor / Responsable
+                  </label>
+                  {firmaSupervisorBase64 && (
+                    <span className="text-[10px] bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 px-2 py-0.5 rounded-md font-semibold">
+                      ✓ Firmado
+                    </span>
+                  )}
+                </div>
+
+                {/* Lista Desplegable de Supervisores */}
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-semibold text-slate-300">
+                    Seleccionar Quién Firma como Supervisor:
+                  </label>
+                  <select
+                    value={supervisorSeleccionadoId}
+                    onChange={e => setSupervisorSeleccionadoId(e.target.value)}
+                    className="input-field text-xs font-medium bg-slate-900 border-slate-700 text-white cursor-pointer"
+                  >
+                    {SUPERVISORES_OFICIALES.map(s => (
+                      <option key={s.id} value={s.id}>
+                        {s.nombre} — {s.cargo}
+                      </option>
+                    ))}
+                    <option value="otro">Otro Supervisor / Cargo Personalizado...</option>
+                  </select>
+                </div>
+
+                {/* Campos personalizados si elige 'otro' */}
+                {supervisorSeleccionadoId === 'otro' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    <div>
+                      <label className="block text-[10px] text-slate-400 mb-0.5">Nombre y Apellidos:</label>
+                      <input
+                        type="text"
+                        placeholder="Ej. Ing. Juan Pérez"
+                        value={supervisorNombrePersonalizado}
+                        onChange={e => setSupervisorNombrePersonalizado(e.target.value)}
+                        className="input-field text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-400 mb-0.5">Cargo / Puesto:</label>
+                      <input
+                        type="text"
+                        placeholder="Ej. Supervisor de Planta"
+                        value={supervisorCargoPersonalizado}
+                        onChange={e => setSupervisorCargoPersonalizado(e.target.value)}
+                        className="input-field text-xs"
+                      />
+                    </div>
+                  </div>
                 )}
-              </button>
+
+                {/* Firma del Supervisor */}
+                {firmaSupervisorBase64 ? (
+                  <div className="relative border-2 border-emerald-500/60 rounded-xl p-3 bg-white flex flex-col items-center">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={firmaSupervisorBase64} alt="Firma Supervisor" className="max-h-24 object-contain" />
+                    <span className="text-[10px] font-semibold text-slate-800 mt-1">
+                      {getSupervisorActual().nombre} • {getSupervisorActual().cargo}
+                    </span>
+                    <div className="absolute top-2 right-2 flex items-center gap-2">
+                      <button
+                        onClick={() => setShowSignatureModalSupervisor(true)}
+                        className="text-[10px] text-blue-700 font-bold hover:underline"
+                      >
+                        Cambiar
+                      </button>
+                      <button
+                        onClick={() => {
+                          setFirmaSupervisorBase64(null)
+                          if (typeof window !== 'undefined') {
+                            localStorage.removeItem(`epp_firma_sup_${supervisorSeleccionadoId}`)
+                          }
+                        }}
+                        className="text-[10px] text-red-600 font-bold hover:underline"
+                      >
+                        Borrar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowSignatureModalSupervisor(true)}
+                      className="w-full py-6 border-2 border-dashed border-cyan-500/50 hover:border-cyan-400 rounded-xl bg-cyan-950/20 flex flex-col items-center justify-center gap-1.5 text-cyan-300 hover:text-white transition group"
+                    >
+                      <PenLine className="w-7 h-7 group-hover:scale-110 transition text-cyan-400" />
+                      <span className="text-xs font-bold">
+                        ✍️ Firmar como {getSupervisorActual().nombre}
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        {getSupervisorActual().cargo} • DALUPEZMAR S.A.C.
+                      </span>
+                    </button>
+
+                    <label className="flex items-center gap-2 text-[11px] text-slate-400 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={recordarFirmaSupervisor}
+                        onChange={e => setRecordarFirmaSupervisor(e.target.checked)}
+                        className="rounded border-slate-700 text-blue-600 focus:ring-0"
+                      />
+                      <span>Recordar la firma de este supervisor en este dispositivo para futuras entregas</span>
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              {/* Resumen de Estado de Firmas y Emisión Final */}
+              <div className="space-y-2.5">
+                <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-[11px] space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Firma Colaborador:</span>
+                    <span className={firmaBase64 ? 'text-emerald-400 font-bold' : 'text-amber-400 font-semibold'}>
+                      {firmaBase64 ? '✓ Listo' : 'Pendiente (Requerido)'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Firma Supervisor:</span>
+                    <span className={firmaSupervisorBase64 ? 'text-emerald-400 font-bold' : 'text-slate-400'}>
+                      {firmaSupervisorBase64 ? `✓ ${getSupervisorActual().nombre}` : 'Pendiente (Opcional)'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Botón de Emisión Final */}
+                <button
+                  onClick={handleFinalizarEntrega}
+                  disabled={guardando || !firmaBase64}
+                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 transition transform active:scale-95"
+                >
+                  {guardando ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" /> Generando Constancia Legal y Archivando...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={16} /> Emitir Acta Oficial y Generar PDF
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── PASO 4: ENTREGA COMPLETADA Y VISOR DE ACTA ───────────────────────── */}
+      {/* PASO 4: ENTREGA COMPLETADA Y VISOR DE ACTA */}
       {step === 4 && entregaCompletada && (
         <div className="card p-6 sm:p-8 text-center space-y-6 border-emerald-500/50 bg-gradient-to-b from-slate-900 via-emerald-950/10 to-slate-900">
           <div className="w-16 h-16 rounded-3xl bg-emerald-500/20 text-emerald-400 mx-auto flex items-center justify-center shadow-xl shadow-emerald-500/20 ring-4 ring-emerald-500/10">
@@ -925,12 +1118,27 @@ function NuevaEntregaContent() {
         isOpen={showSignatureModal}
         onClose={() => setShowSignatureModal(false)}
         onConfirm={sig => setFirmaBase64(sig)}
+        title="Firma Táctil de Conformidad del Colaborador"
         workerName={
           trabajadorSeleccionado
             ? `${trabajadorSeleccionado.apellidos}, ${trabajadorSeleccionado.nombres}`
             : ''
         }
         workerDni={trabajadorSeleccionado?.dni || ''}
+      />
+
+      <SignaturePadModal
+        isOpen={showSignatureModalSupervisor}
+        onClose={() => setShowSignatureModalSupervisor(false)}
+        onConfirm={sig => {
+          setFirmaSupervisorBase64(sig)
+          if (recordarFirmaSupervisor && typeof window !== 'undefined') {
+            localStorage.setItem(`epp_firma_sup_${supervisorSeleccionadoId}`, sig)
+          }
+        }}
+        title="Firma del Supervisor / Responsable de Entrega"
+        workerName={getSupervisorActual().nombre}
+        signerRole={`${getSupervisorActual().cargo} • DALUPEZMAR S.A.C.`}
       />
 
       <ScannerSimulatorModal
