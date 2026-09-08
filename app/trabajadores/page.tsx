@@ -10,21 +10,16 @@ import {
   UserCheck,
   X,
   Save,
-  Package,
-  Calendar,
-  Building2,
-  Phone,
-  ShieldCheck,
-  Tag,
-  ChevronRight,
-  Filter,
   RefreshCw,
   Scan,
   CheckCircle2,
   AlertCircle,
-  HardHat,
-  Droplet,
   Trash2,
+  FolderCheck,
+  FolderArchive,
+  ArrowRightLeft,
+  ShieldCheck,
+  Sparkles,
 } from 'lucide-react'
 import type { Trabajador } from '@/lib/types'
 import { AREAS, TALLAS_CALZADO, TALLAS_ROPA, TALLAS_PANTALON } from '@/lib/types'
@@ -50,39 +45,95 @@ const emptyForm = {
 }
 
 export default function TrabajadoresPage() {
-  const [trabajadores, setTrabajadores] = useState<Trabajador[]>([])
+  // Lista maestra de todos los colaboradores
+  const [todosTrabajadores, setTodosTrabajadores] = useState<Trabajador[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Carpeta activa: 'activos' (por defecto) o 'bajas'
+  const [tabCarpeta, setTabCarpeta] = useState<'activos' | 'bajas'>('activos')
+
+  // Filtros de búsqueda
   const [search, setSearch] = useState('')
-  const [filtroEstado, setFiltroEstado] = useState('')
   const [filtroArea, setFiltroArea] = useState('')
+
+  // Modales
   const [showModal, setShowModal] = useState(false)
   const [showScanner, setShowScanner] = useState(false)
-  const [syncing, setSyncing] = useState(false)
-  const [syncMessage, setSyncMessage] = useState<string | null>(null)
   const [editando, setEditando] = useState<Trabajador | null>(null)
   const [trabajadorAEliminar, setTrabajadorAEliminar] = useState<Trabajador | null>(null)
+  const [trabajadorABajar, setTrabajadorABajar] = useState<Trabajador | null>(null)
+  const [trabajadorAReactivar, setTrabajadorAReactivar] = useState<Trabajador | null>(null)
+
+  // Estados de proceso
   const [eliminando, setEliminando] = useState(false)
+  const [procesandoEstado, setProcesandoEstado] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [syncMessage, setSyncMessage] = useState<string | null>(null)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  // Cargar todos los colaboradores desde el backend
   const cargar = useCallback(async () => {
     setLoading(true)
-    const params = new URLSearchParams()
-    if (search) params.set('search', search)
-    if (filtroEstado) params.set('estado', filtroEstado)
-    if (filtroArea) params.set('area', filtroArea)
-    const res = await fetch(`/api/trabajadores?${params}`)
-    const data = await res.json()
-    setTrabajadores(data)
-    setLoading(false)
-  }, [search, filtroEstado, filtroArea])
+    try {
+      const res = await fetch('/api/trabajadores')
+      const data = await res.json()
+      if (Array.isArray(data)) {
+        setTodosTrabajadores(data)
+      }
+    } catch (err: any) {
+      console.error('Error al cargar trabajadores:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
     cargar()
   }, [cargar])
 
-  // Sincronizar automáticamente con el sistema de Asistencia y Fotochecks
+  // Contadores dinámicos para las carpetas
+  const totalActivos = todosTrabajadores.filter(t => t.estado === 'activo').length
+  const totalBajas = todosTrabajadores.filter(t => t.estado === 'inactivo').length
+
+  // Filtrado estricto por carpeta y parámetros de búsqueda
+  const trabajadoresMostrados = todosTrabajadores.filter(t => {
+    // 1. Separación estricta por carpeta
+    if (tabCarpeta === 'activos' && t.estado !== 'activo') return false
+    if (tabCarpeta === 'bajas' && t.estado !== 'inactivo') return false
+
+    // 2. Filtro por área operativa
+    if (filtroArea && t.area !== filtroArea) return false
+
+    // 3. Filtro por texto de búsqueda
+    if (search.trim()) {
+      const q = search.toLowerCase().trim()
+      const matchDni = t.dni.toLowerCase().includes(q)
+      const matchFotocheck = (t.codigoFotocheck || '').toLowerCase().includes(q)
+      const matchNombres = t.nombres.toLowerCase().includes(q)
+      const matchApellidos = t.apellidos.toLowerCase().includes(q)
+      const matchCompleto = `${t.apellidos} ${t.nombres}`.toLowerCase().includes(q)
+      const matchInvertido = `${t.nombres} ${t.apellidos}`.toLowerCase().includes(q)
+      const matchCargo = (t.cargo || '').toLowerCase().includes(q)
+
+      if (
+        !matchDni &&
+        !matchFotocheck &&
+        !matchNombres &&
+        !matchApellidos &&
+        !matchCompleto &&
+        !matchInvertido &&
+        !matchCargo
+      ) {
+        return false
+      }
+    }
+
+    return true
+  })
+
+  // Sincronizar manualmente con el sistema de Asistencia y Fotochecks
   const handleSincronizar = async () => {
     setSyncing(true)
     setSyncMessage(null)
@@ -170,16 +221,63 @@ export default function TrabajadoresPage() {
     }
   }
 
-  const cambiarEstado = async (t: Trabajador) => {
-    const nuevoEstado = t.estado === 'activo' ? 'inactivo' : 'activo'
-    await fetch(`/api/trabajadores/${t.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ estado: nuevoEstado }),
-    })
-    cargar()
+  // Dar de baja a un trabajador activo (mover a carpeta de bajas)
+  const confirmarDarDeBaja = async () => {
+    if (!trabajadorABajar) return
+    setProcesandoEstado(true)
+    try {
+      const res = await fetch(`/api/trabajadores/${trabajadorABajar.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: 'inactivo' }),
+      })
+      if (res.ok) {
+        setSyncMessage(
+          `⛔ "${trabajadorABajar.apellidos}, ${trabajadorABajar.nombres}" fue dado de baja y transferido a la Carpeta de Bajas.`
+        )
+        setTrabajadorABajar(null)
+        await cargar()
+      } else {
+        const d = await res.json()
+        alert(`Error al dar de baja: ${d.error || 'Ocurrió un error inesperado'}`)
+      }
+    } catch (e: any) {
+      alert(`Error de conexión: ${e.message}`)
+    } finally {
+      setProcesandoEstado(false)
+      setTimeout(() => setSyncMessage(null), 8000)
+    }
   }
 
+  // Reactivar a un trabajador en baja (devolver a carpeta de activos)
+  const confirmarReactivar = async () => {
+    if (!trabajadorAReactivar) return
+    setProcesandoEstado(true)
+    try {
+      const res = await fetch(`/api/trabajadores/${trabajadorAReactivar.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: 'activo' }),
+      })
+      if (res.ok) {
+        setSyncMessage(
+          `✅ "${trabajadorAReactivar.apellidos}, ${trabajadorAReactivar.nombres}" ha sido reactivado exitosamente y devuelto a la Carpeta de Colaboradores Activos.`
+        )
+        setTrabajadorAReactivar(null)
+        await cargar()
+      } else {
+        const d = await res.json()
+        alert(`Error al reactivar: ${d.error || 'Ocurrió un error inesperado'}`)
+      }
+    } catch (e: any) {
+      alert(`Error de conexión: ${e.message}`)
+    } finally {
+      setProcesandoEstado(false)
+      setTimeout(() => setSyncMessage(null), 8000)
+    }
+  }
+
+  // Eliminar definitivamente de EPP Control y Asistencia
   const confirmarEliminarPermanente = async () => {
     if (!trabajadorAEliminar) return
     setEliminando(true)
@@ -192,7 +290,7 @@ export default function TrabajadoresPage() {
         setSyncMessage(`🗑️ ${data.message || 'Trabajador eliminado permanentemente de todo el sistema.'}`)
         setTrabajadorAEliminar(null)
         setShowModal(false)
-        cargar()
+        await cargar()
       } else {
         alert(`Error al eliminar: ${data.error || 'Ocurrió un error inesperado'}`)
       }
@@ -200,23 +298,24 @@ export default function TrabajadoresPage() {
       alert(`Error de conexión: ${err.message}`)
     } finally {
       setEliminando(false)
+      setTimeout(() => setSyncMessage(null), 8000)
     }
   }
 
   return (
     <div className="w-full px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-      {/* Header */}
+      {/* ── HEADER PRINCIPAL ────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <div className="w-11 h-11 bg-blue-600/20 text-blue-500 rounded-2xl flex items-center justify-center shadow-sm">
+          <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-cyan-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20">
             <Users className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
               Padrón General de Colaboradores
             </h1>
-            <p className="text-xs sm:text-sm text-slate-400">
-              {trabajadores.length} trabajadores sincronizados con Fotochecks y Asistencia DALUPEZMAR
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+              Personal clasificado por carpetas de nómina con sincronización en vivo hacia Fotochecks y Asistencia DALUPEZMAR
             </p>
           </div>
         </div>
@@ -225,42 +324,140 @@ export default function TrabajadoresPage() {
           <button
             onClick={handleSincronizar}
             disabled={syncing}
-            className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 text-xs font-bold flex items-center gap-1.5 shadow-sm transition active:scale-95 disabled:opacity-50"
+            className="px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-cyan-700 dark:text-cyan-300 border border-slate-300 dark:border-slate-700 text-xs font-bold flex items-center gap-1.5 shadow-xs transition active:scale-95 disabled:opacity-50"
             title="Sincronizar altas, bajas y cambios con la base de datos de Asistencia y Fotochecks"
           >
-            <RefreshCw size={14} className={syncing ? 'animate-spin text-cyan-400' : ''} />
+            <RefreshCw size={14} className={syncing ? 'animate-spin text-cyan-500' : ''} />
             {syncing ? 'Sincronizando...' : 'Sincronizar Asistencia'}
           </button>
 
           <button
             onClick={() => setShowScanner(true)}
-            className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-blue-500/20 transition active:scale-95"
-            title="Escanear fotocheck físico con la cámara del celular"
+            className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition active:scale-95"
+            title="Escanear fotocheck físico con la cámara del celular o pistola lectora"
           >
             <Scan size={15} /> Escanear Fotocheck
           </button>
 
-          <button onClick={abrirNuevo} className="btn-primary text-xs flex items-center gap-1.5">
+          <button onClick={abrirNuevo} className="btn-primary text-xs py-2.5 flex items-center gap-1.5 shadow-md shadow-blue-500/20">
             <Plus size={16} /> Registrar Colaborador
           </button>
         </div>
       </div>
 
-      {/* Notificación de Sincronización */}
+      {/* ── NOTIFICACIÓN DE ESTADO / SINCRONIZACIÓN ───────────────────── */}
       {syncMessage && (
-        <div className="p-3.5 bg-blue-950/70 border border-cyan-500/40 text-cyan-200 rounded-2xl text-xs font-bold flex items-center gap-2 animate-in fade-in">
-          <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
-          <span>{syncMessage}</span>
+        <div className="p-4 bg-blue-950/80 border border-cyan-500/50 text-cyan-200 rounded-2xl text-xs font-bold flex items-center gap-2.5 shadow-md animate-in fade-in duration-200">
+          <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />
+          <span className="leading-relaxed">{syncMessage}</span>
+          <button
+            onClick={() => setSyncMessage(null)}
+            className="ml-auto p-1 text-slate-400 hover:text-white rounded-lg"
+          >
+            <X size={14} />
+          </button>
         </div>
       )}
 
-      {/* Barra de Filtros Espaciosa */}
-      <div className="card p-4 flex flex-wrap items-center justify-between gap-3 shadow-sm">
+      {/* ── PESTAÑAS TIPO CARPETAS FÍSICAS (ACTIVOS VS BAJAS) ────────── */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+          {/* Carpeta 1: Colaboradores Activos */}
+          <button
+            onClick={() => setTabCarpeta('activos')}
+            className={`px-4 sm:px-5 py-3 rounded-2xl font-black text-xs sm:text-sm flex items-center gap-2.5 transition-all shadow-xs cursor-pointer ${
+              tabCarpeta === 'activos'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 ring-2 ring-blue-400/40'
+                : 'bg-white dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700'
+            }`}
+          >
+            <FolderCheck className={`w-4 h-4 ${tabCarpeta === 'activos' ? 'text-white' : 'text-cyan-500'}`} />
+            <span>📁 Carpeta: Colaboradores Activos</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-xs font-mono font-black ${
+                tabCarpeta === 'activos'
+                  ? 'bg-blue-900/80 text-cyan-200 border border-blue-400/30'
+                  : 'bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200'
+              }`}
+            >
+              {totalActivos}
+            </span>
+          </button>
+
+          {/* Carpeta 2: Trabajadores en Baja */}
+          <button
+            onClick={() => setTabCarpeta('bajas')}
+            className={`px-4 sm:px-5 py-3 rounded-2xl font-black text-xs sm:text-sm flex items-center gap-2.5 transition-all shadow-xs cursor-pointer ${
+              tabCarpeta === 'bajas'
+                ? 'bg-rose-700 text-white shadow-lg shadow-rose-700/30 ring-2 ring-rose-400/40'
+                : 'bg-white dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700'
+            }`}
+          >
+            <FolderArchive className={`w-4 h-4 ${tabCarpeta === 'bajas' ? 'text-white' : 'text-rose-400'}`} />
+            <span>📁 Carpeta: Trabajadores en Baja</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-xs font-mono font-black ${
+                tabCarpeta === 'bajas'
+                  ? 'bg-rose-950 text-rose-200 border border-rose-400/30'
+                  : 'bg-rose-50 dark:bg-red-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-red-900/60'
+              }`}
+            >
+              {totalBajas}
+            </span>
+          </button>
+        </div>
+
+        {/* Indicador de Carpeta Activa */}
+        <div className="text-right hidden md:block">
+          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+            {tabCarpeta === 'activos' ? 'Estado de la Nómina' : 'Archivo Histórico'}
+          </p>
+          <p className="text-xs font-black text-slate-900 dark:text-white">
+            {tabCarpeta === 'activos'
+              ? `${totalActivos} trabajadores activos en planta PECEPE`
+              : `${totalBajas} trabajadores archivados (con opción de reactivación)`}
+          </p>
+        </div>
+      </div>
+
+      {/* ── BANNER EXPLICATIVO SEGÚN LA CARPETA SELECCIONADA ───────────── */}
+      {tabCarpeta === 'activos' ? (
+        <div className="p-3.5 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-2xl flex items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+            <span className="text-slate-800 dark:text-slate-200">
+              Visualizando <strong>Carpeta de Colaboradores Activos</strong>. Los colaboradores que fueron dados de baja han sido separados de esta lista y trasladados a su respectiva <strong>Carpeta de Bajas</strong>.
+            </span>
+          </div>
+          <span className="text-[11px] font-mono font-bold text-blue-700 dark:text-cyan-400 bg-white dark:bg-slate-800 px-2.5 py-1 rounded-xl border border-blue-200 dark:border-slate-700 shrink-0">
+            {trabajadoresMostrados.length} de {totalActivos} activos
+          </span>
+        </div>
+      ) : (
+        <div className="p-3.5 bg-rose-50/70 dark:bg-red-950/30 border border-rose-200 dark:border-red-900/50 rounded-2xl flex items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
+            <span className="text-slate-800 dark:text-slate-200">
+              Visualizando <strong>Carpeta de Trabajadores en Baja</strong>. Cada colaborador cuenta con la opción de <strong>Reactivar Colaborador</strong> para reintegrarlo inmediatamente a la Carpeta de Activos.
+            </span>
+          </div>
+          <span className="text-[11px] font-mono font-bold text-rose-700 dark:text-rose-300 bg-white dark:bg-slate-800 px-2.5 py-1 rounded-xl border border-rose-200 dark:border-slate-700 shrink-0">
+            {trabajadoresMostrados.length} de {totalBajas} en baja
+          </span>
+        </div>
+      )}
+
+      {/* ── BARRA DE BÚSQUEDA Y FILTRO DE ÁREA ───────────────────────── */}
+      <div className="card p-4 flex flex-wrap items-center justify-between gap-3 shadow-xs">
         <div className="relative flex-1 min-w-[240px]">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
           <input
             className="input-field input-with-icon text-xs py-2.5"
-            placeholder="Buscar por DNI, Fotocheck (DAL-XXXX), apellidos, nombres o cargo..."
+            placeholder={
+              tabCarpeta === 'activos'
+                ? 'Buscar en colaboradores activos por DNI, Fotocheck (DAL-XXXX), apellidos, nombres o cargo...'
+                : 'Buscar en trabajadores en baja por DNI, apellidos, nombres o cargo para reactivar...'
+            }
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
@@ -280,166 +477,389 @@ export default function TrabajadoresPage() {
             ))}
           </select>
 
-          <select
-            className="input-field w-auto text-xs py-2.5 font-bold"
-            value={filtroEstado}
-            onChange={e => setFiltroEstado(e.target.value)}
-          >
-            <option value="">Todos los estados</option>
-            <option value="activo">Solo Activos</option>
-            <option value="inactivo">Inactivos (De baja)</option>
-          </select>
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              className="px-3 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-white rounded-xl bg-slate-100 dark:bg-slate-800 transition"
+            >
+              Limpiar búsqueda
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Vista de Tabla Espaciosa (Desktop / Tablet) */}
+      {/* ── TABLA DE COLABORADORES POR CARPETA ───────────────────────── */}
       <div className="card p-0 overflow-hidden shadow-md">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse min-w-[960px]">
+          <table className="w-full text-left text-xs border-collapse min-w-[980px]">
             <thead>
               <tr className="bg-slate-800 text-slate-200 border-b border-slate-700">
                 <th className="py-3.5 px-4 font-bold w-36">DNI / Fotocheck</th>
-                <th className="py-3.5 px-4 font-bold min-w-[200px]">Apellidos y Nombres</th>
+                <th className="py-3.5 px-4 font-bold min-w-[210px]">Apellidos y Nombres</th>
                 <th className="py-3.5 px-4 font-bold min-w-[170px]">Cargo / Puesto</th>
                 <th className="py-3.5 px-4 font-bold min-w-[130px]">Área Operativa</th>
                 <th className="py-3.5 px-4 font-bold min-w-[110px]">Tallas</th>
                 <th className="py-3.5 px-4 font-bold min-w-[120px]">Emergencia</th>
-                <th className="py-3.5 px-4 font-bold text-center w-24">Estado</th>
-                <th className="py-3.5 px-4 font-bold text-center w-20">Actas</th>
-                <th className="py-3.5 px-4 font-bold text-center w-28">Acciones</th>
+                <th className="py-3.5 px-4 font-bold text-center w-28">Carpeta / Estado</th>
+                <th className="py-3.5 px-4 font-bold text-center w-20">Actas EPP</th>
+                <th className="py-3.5 px-4 font-bold text-center w-36">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800 bg-slate-900/60 text-slate-300">
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900/60 text-slate-800 dark:text-slate-300">
               {loading ? (
                 [...Array(6)].map((_, i) => (
                   <tr key={i}>
                     {[...Array(9)].map((_, j) => (
                       <td key={j} className="py-4 px-4">
-                        <div className="h-4 bg-slate-800/80 rounded animate-pulse" />
+                        <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />
                       </td>
                     ))}
                   </tr>
                 ))
-              ) : trabajadores.length === 0 ? (
+              ) : trabajadoresMostrados.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="text-center text-slate-400 py-12 text-sm">
-                    No se encontraron colaboradores con los filtros seleccionados.
+                  <td colSpan={9} className="text-center text-slate-500 dark:text-slate-400 py-12 text-sm">
+                    {tabCarpeta === 'activos'
+                      ? 'No se encontraron colaboradores activos con los filtros especificados.'
+                      : 'No se encontraron trabajadores en la Carpeta de Bajas con los filtros especificados.'}
                   </td>
                 </tr>
               ) : (
-                trabajadores.map(t => {
+                trabajadoresMostrados.map(t => {
                   const isInactive = t.estado === 'inactivo'
                   return (
-                  <tr key={t.id} className={`transition ${isInactive ? 'bg-red-500/5 hover:bg-red-500/10' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}>
-                    <td className="py-3.5 px-4 font-mono text-xs whitespace-nowrap">
-                      <div className="flex flex-col gap-1">
-                        <span className={`font-black px-2 py-0.5 rounded-lg border ${
-                          isInactive
-                            ? 'text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-800'
-                            : 'text-blue-700 dark:text-cyan-400 bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800'
-                        }`}>
-                          {t.dni}
+                    <tr
+                      key={t.id}
+                      className={`transition ${
+                        isInactive
+                          ? 'bg-rose-500/5 hover:bg-rose-500/10'
+                          : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                      }`}
+                    >
+                      {/* DNI / Fotocheck */}
+                      <td className="py-3.5 px-4 font-mono text-xs whitespace-nowrap">
+                        <div className="flex flex-col gap-1">
+                          <span
+                            className={`font-black px-2 py-0.5 rounded-lg border ${
+                              isInactive
+                                ? 'text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-red-950/40 border-rose-300 dark:border-rose-800'
+                                : 'text-blue-700 dark:text-cyan-400 bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800'
+                            }`}
+                          >
+                            {t.dni}
+                          </span>
+                          {t.codigoFotocheck && (
+                            <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800/60 flex items-center gap-1">
+                              📷 {t.codigoFotocheck}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Apellidos y Nombres */}
+                      <td className="py-3.5 px-4">
+                        <div className="font-black text-sm text-slate-950 dark:text-white leading-snug flex items-center gap-2 flex-wrap">
+                          <span>
+                            {t.apellidos}, {t.nombres}
+                          </span>
+                          {isInactive && (
+                            <span className="text-[10px] font-black text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-950/90 px-2 py-0.5 rounded-full border border-rose-300 dark:border-rose-800">
+                              ⛔ EN BAJA
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-2">
+                          <span>Ingreso: {new Date(t.fechaIngreso).toLocaleDateString('es-PE')}</span>
+                          {t.grupoSanguineo && (
+                            <span className="text-rose-600 dark:text-rose-400 font-bold">
+                              🩸 {t.grupoSanguineo}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Cargo */}
+                      <td className="py-3.5 px-4 font-bold text-slate-800 dark:text-slate-200">{t.cargo}</td>
+
+                      {/* Área */}
+                      <td className="py-3.5 px-4">
+                        <span className="badge-area">{t.area}</span>
+                      </td>
+
+                      {/* Tallas */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <div className="flex items-center gap-1 text-xs">
+                          <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-[10px] font-bold">
+                            P: {t.tallaPantalon || '-'}
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-[10px] font-bold">
+                            C: {t.tallaCamisa || '-'}
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-[10px] font-bold">
+                            Z: {t.tallaCalzado || '-'}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Emergencia */}
+                      <td className="py-3.5 px-4">
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                          {t.contactoEmergencia || '+51 911111111'}
                         </span>
-                        {t.codigoFotocheck && (
-                          <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800/60 flex items-center gap-1">
-                            📷 {t.codigoFotocheck}
+                      </td>
+
+                      {/* Carpeta / Estado */}
+                      <td className="py-3.5 px-4 text-center">
+                        {t.estado === 'activo' ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                            Activo
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-800">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-600" />
+                            En Baja
                           </span>
                         )}
-                        {isInactive && (
-                          <span className="text-[10px] font-black text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-950/80 px-1.5 py-0.5 rounded border border-red-300 dark:border-red-700 flex items-center gap-0.5">
-                            ⛔ INACTIVO
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <div className="font-black text-sm text-slate-950 dark:text-white leading-snug flex items-center gap-2 flex-wrap">
-                        <span>{t.apellidos}, {t.nombres}</span>
-                        {isInactive && (
-                          <span className="text-[10px] font-black text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-950/90 px-2 py-0.5 rounded-full border border-red-300 dark:border-red-700">
-                            ⛔ DADO DE BAJA
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-2">
-                        <span>Ingreso: {new Date(t.fechaIngreso).toLocaleDateString('es-PE')}</span>
-                        {t.grupoSanguineo && (
-                          <span className="text-rose-500 dark:text-rose-400 font-bold">
-                            🩸 {t.grupoSanguineo}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4 font-bold text-slate-800 dark:text-slate-200">{t.cargo}</td>
-                    <td className="py-3.5 px-4">
-                      <span className="badge-area">{t.area}</span>
-                    </td>
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <div className="flex items-center gap-1 text-xs">
-                        <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-[10px] font-bold">
-                          P: {t.tallaPantalon || '-'}
-                        </span>
-                        <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-[10px] font-bold">
-                          C: {t.tallaCamisa || '-'}
-                        </span>
-                        <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-[10px] font-bold">
-                          Z: {t.tallaCalzado || '-'}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span className="text-[11px] text-slate-400 font-mono">
-                        {t.contactoEmergencia || '+51 911111111'}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-center">
-                      <span
-                        className={t.estado === 'activo' ? 'badge-vigente' : 'badge-vencido'}
-                      >
-                        {t.estado === 'activo' ? '● Activo' : '● Inactivo'}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-center font-black font-mono text-blue-700 dark:text-cyan-400 text-sm">
-                      {t._count?.entregas ?? 0}
-                    </td>
-                    <td className="py-3.5 px-4 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <button
-                          onClick={() => abrirEditar(t)}
-                          className="p-2 rounded-xl bg-blue-50 dark:bg-slate-800 hover:bg-blue-600 dark:hover:bg-blue-600 text-blue-700 dark:text-slate-300 hover:text-white transition shadow-2xs border border-blue-300 dark:border-slate-700"
-                          title="Editar Trabajador"
-                        >
-                          <Pencil size={13} className="text-blue-700 dark:text-slate-300" />
-                        </button>
-                        <button
-                          onClick={() => cambiarEstado(t)}
-                          className={`p-2 rounded-xl transition shadow-2xs border ${
-                            t.estado === 'activo'
-                              ? 'bg-rose-50 dark:bg-red-950/40 text-rose-700 dark:text-red-400 hover:bg-rose-600 hover:text-white border-rose-300 dark:border-red-800/40'
-                              : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-600 hover:text-white border-emerald-300 dark:border-emerald-800/40'
-                          }`}
-                          title={t.estado === 'activo' ? 'Dar de baja en EPP y Fotocheck' : 'Reactivar Colaborador'}
-                        >
-                          {t.estado === 'activo' ? <UserX size={13} /> : <UserCheck size={13} />}
-                        </button>
-                        <button
-                          onClick={() => setTrabajadorAEliminar(t)}
-                          className="p-2 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 hover:bg-red-600 hover:text-white transition shadow-2xs border border-red-200 dark:border-red-800/50"
-                          title="Eliminar permanentemente de todo el sistema (EPP y Asistencia)"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )})
+                      </td>
+
+                      {/* Actas */}
+                      <td className="py-3.5 px-4 text-center font-black font-mono text-blue-700 dark:text-cyan-400 text-sm">
+                        {t._count?.entregas ?? 0}
+                      </td>
+
+                      {/* Acciones */}
+                      <td className="py-3.5 px-4 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          {/* Si está en la carpeta de Bajas: botón destacado REACTIVAR */}
+                          {isInactive ? (
+                            <button
+                              onClick={() => setTrabajadorAReactivar(t)}
+                              className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black flex items-center gap-1 shadow-sm transition active:scale-95 cursor-pointer"
+                              title="Reactivar Colaborador (trasladar a Carpeta de Activos)"
+                            >
+                              <UserCheck size={14} />
+                              <span>Reactivar</span>
+                            </button>
+                          ) : (
+                            /* Si está en la carpeta de Activos: botón DAR DE BAJA */
+                            <button
+                              onClick={() => setTrabajadorABajar(t)}
+                              className="p-2 rounded-xl bg-rose-50 dark:bg-red-950/40 text-rose-700 dark:text-red-400 hover:bg-rose-600 hover:text-white transition shadow-2xs border border-rose-300 dark:border-red-800/40 cursor-pointer"
+                              title="Dar de baja al colaborador (trasladar a Carpeta de Bajas)"
+                            >
+                              <UserX size={14} />
+                            </button>
+                          )}
+
+                          {/* Botón Editar */}
+                          <button
+                            onClick={() => abrirEditar(t)}
+                            className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-blue-600 dark:hover:bg-blue-600 text-slate-700 dark:text-slate-300 hover:text-white transition shadow-2xs border border-slate-300 dark:border-slate-700 cursor-pointer"
+                            title="Editar Datos del Trabajador"
+                          >
+                            <Pencil size={13} />
+                          </button>
+
+                          {/* Botón Eliminar Permanente */}
+                          <button
+                            onClick={() => setTrabajadorAEliminar(t)}
+                            className="p-2 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 hover:bg-red-600 hover:text-white transition shadow-2xs border border-red-200 dark:border-red-800/50 cursor-pointer"
+                            title="Eliminar permanentemente de todo el sistema (EPP y Asistencia)"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Modal de Registro / Edición de Colaborador */}
+      {/* ── MODAL DE CONFIRMACIÓN: DAR DE BAJA ────────────────────────── */}
+      {trabajadorABajar && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 border-2 border-rose-500/40 rounded-3xl p-6 shadow-2xl space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/15 text-rose-500 flex items-center justify-center mx-auto mb-2">
+              <UserX className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-2">
+              <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                ¿Dar de baja al colaborador?
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                El colaborador será retirado de la <strong>Carpeta de Activos</strong> y trasladado a la <strong>Carpeta de Bajas</strong>:
+              </p>
+              <div className="p-3 bg-rose-50 dark:bg-red-950/30 border border-rose-200 dark:border-red-900/50 rounded-2xl text-left space-y-1">
+                <p className="text-sm font-black text-slate-900 dark:text-white">
+                  {trabajadorABajar.apellidos}, {trabajadorABajar.nombres}
+                </p>
+                <p className="text-xs font-mono text-slate-600 dark:text-slate-400">
+                  DNI: <span className="font-bold text-rose-600 dark:text-rose-400">{trabajadorABajar.dni}</span> • {trabajadorABajar.cargo}
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  Área: <span className="font-bold">{trabajadorABajar.area}</span>
+                </p>
+              </div>
+
+              <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl text-left">
+                <p className="text-[11px] font-bold text-blue-700 dark:text-blue-300 flex items-start gap-1.5">
+                  <FolderArchive size={15} className="shrink-0 mt-0.5 text-blue-500" />
+                  <span>
+                    Su historial de actas y constancias se conservará intacto. Podrá reactivar al colaborador en cualquier momento desde la <strong>Carpeta de Bajas</strong>.
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setTrabajadorABajar(null)}
+                disabled={procesandoEstado}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold transition disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmarDarDeBaja}
+                disabled={procesandoEstado}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-95 text-white text-xs font-black shadow-lg shadow-rose-600/30 flex items-center justify-center gap-1.5 transition disabled:opacity-50"
+              >
+                <UserX size={14} />
+                {procesandoEstado ? 'Dando de baja...' : 'Sí, Dar de Baja'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL DE CONFIRMACIÓN: REACTIVAR COLABORADOR ────────────────── */}
+      {trabajadorAReactivar && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 border-2 border-emerald-500/40 rounded-3xl p-6 shadow-2xl space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 text-emerald-500 flex items-center justify-center mx-auto mb-2">
+              <UserCheck className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-2">
+              <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                ¿Reactivar colaborador?
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                El colaborador será retirado de la <strong>Carpeta de Bajas</strong> y devuelto a la <strong>Carpeta de Colaboradores Activos</strong>:
+              </p>
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50 rounded-2xl text-left space-y-1">
+                <p className="text-sm font-black text-slate-900 dark:text-white">
+                  {trabajadorAReactivar.apellidos}, {trabajadorAReactivar.nombres}
+                </p>
+                <p className="text-xs font-mono text-slate-600 dark:text-slate-400">
+                  DNI: <span className="font-bold text-emerald-600 dark:text-emerald-400">{trabajadorAReactivar.dni}</span> • {trabajadorAReactivar.cargo}
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  Área: <span className="font-bold">{trabajadorAReactivar.area}</span>
+                </p>
+              </div>
+
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-left">
+                <p className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 flex items-start gap-1.5">
+                  <CheckCircle2 size={15} className="shrink-0 mt-0.5 text-emerald-500" />
+                  <span>
+                    Su estado pasará a <strong>Activo</strong> en EPP Control y se sincronizará automáticamente como <strong>ACTIVE</strong> en el sistema de Asistencia DALUPEZMAR.
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setTrabajadorAReactivar(null)}
+                disabled={procesandoEstado}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold transition disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmarReactivar}
+                disabled={procesandoEstado}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-black shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-1.5 transition disabled:opacity-50"
+              >
+                <UserCheck size={14} />
+                {procesandoEstado ? 'Reactivando...' : 'Sí, Reactivar Colaborador'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL DE CONFIRMACIÓN: ELIMINACIÓN PERMANENTE ─────────────── */}
+      {trabajadorAEliminar && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 border-2 border-red-500/40 rounded-3xl p-6 shadow-2xl space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-red-500/15 text-red-500 flex items-center justify-center mx-auto mb-2">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-2">
+              <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                ¿Eliminar definitivamente?
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                Estás a punto de eliminar de forma permanente e irreversible a:
+              </p>
+              <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-2xl text-left space-y-1">
+                <p className="text-sm font-black text-slate-900 dark:text-white">
+                  {trabajadorAEliminar.apellidos}, {trabajadorAEliminar.nombres}
+                </p>
+                <p className="text-xs font-mono text-slate-600 dark:text-slate-400">
+                  DNI: <span className="font-bold text-red-600 dark:text-red-400">{trabajadorAEliminar.dni}</span> • {trabajadorAEliminar.cargo}
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  Entregas de EPP registradas: <span className="font-bold">{trabajadorAEliminar._count?.entregas ?? 0}</span>
+                </p>
+              </div>
+              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-left">
+                <p className="text-[11px] font-bold text-amber-700 dark:text-amber-300 flex items-start gap-1.5">
+                  <AlertCircle size={15} className="shrink-0 mt-0.5 text-amber-500" />
+                  <span>
+                    Esta acción eliminará al colaborador de <strong>EPP Control</strong> (incluyendo historial de actas y carpetas de constancias) y del sistema de <strong>Asistencia DALUPEZMAR</strong> en vivo.
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setTrabajadorAEliminar(null)}
+                disabled={eliminando}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold transition disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmarEliminarPermanente}
+                disabled={eliminando}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-700 active:scale-95 text-white text-xs font-black shadow-lg shadow-red-600/30 flex items-center justify-center gap-1.5 transition disabled:opacity-50"
+              >
+                <Trash2 size={14} />
+                {eliminando ? 'Eliminando...' : 'Sí, Eliminar de Todo'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL DE REGISTRO / EDICIÓN DE COLABORADOR ─────────────────── */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-sm">
           <div className="w-full max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
@@ -627,7 +1047,7 @@ export default function TrabajadoresPage() {
                 <button
                   type="button"
                   onClick={() => setTrabajadorAEliminar(editando)}
-                  className="px-3.5 py-2 rounded-xl bg-red-50 dark:bg-red-950/40 hover:bg-red-600 text-red-600 dark:text-red-400 hover:text-white text-xs font-bold flex items-center gap-1.5 border border-red-300 dark:border-red-800/60 transition active:scale-95"
+                  className="px-3.5 py-2 rounded-xl bg-red-50 dark:bg-red-950/40 hover:bg-red-600 text-red-600 dark:text-red-400 hover:text-white text-xs font-bold flex items-center gap-1.5 border border-red-300 dark:border-red-800/60 transition active:scale-95 cursor-pointer"
                   title="Eliminar permanentemente de EPP Control y Asistencia"
                 >
                   <Trash2 size={14} /> Eliminar Permanentemente
@@ -655,66 +1075,7 @@ export default function TrabajadoresPage() {
         </div>
       )}
 
-      {/* Modal de Confirmación de Eliminación Permanente */}
-      {trabajadorAEliminar && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-150">
-          <div className="w-full max-w-md bg-white dark:bg-slate-900 border-2 border-red-500/40 rounded-3xl p-6 shadow-2xl space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-red-500/15 text-red-500 flex items-center justify-center mx-auto mb-2">
-              <Trash2 className="w-6 h-6" />
-            </div>
-
-            <div className="text-center space-y-2">
-              <h3 className="text-lg font-black text-slate-900 dark:text-white">
-                ¿Eliminar definitivamente?
-              </h3>
-              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                Estás a punto de eliminar de forma permanente e irreversible a:
-              </p>
-              <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-2xl text-left space-y-1">
-                <p className="text-sm font-black text-slate-900 dark:text-white">
-                  {trabajadorAEliminar.apellidos}, {trabajadorAEliminar.nombres}
-                </p>
-                <p className="text-xs font-mono text-slate-600 dark:text-slate-400">
-                  DNI: <span className="font-bold text-red-600 dark:text-red-400">{trabajadorAEliminar.dni}</span> • {trabajadorAEliminar.cargo}
-                </p>
-                <p className="text-[11px] text-slate-500">
-                  Entregas de EPP registradas: <span className="font-bold">{trabajadorAEliminar._count?.entregas ?? 0}</span>
-                </p>
-              </div>
-              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-left">
-                <p className="text-[11px] font-bold text-amber-700 dark:text-amber-300 flex items-start gap-1.5">
-                  <AlertCircle size={15} className="shrink-0 mt-0.5 text-amber-500" />
-                  <span>
-                    Esta acción eliminará al colaborador de <strong>EPP Control</strong> (incluyendo historial de actas y carpetas de constancias) y del sistema de <strong>Asistencia DALUPEZMAR</strong> en vivo.
-                  </span>
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setTrabajadorAEliminar(null)}
-                disabled={eliminando}
-                className="flex-1 py-2.5 px-4 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold transition disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={confirmarEliminarPermanente}
-                disabled={eliminando}
-                className="flex-1 py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-700 active:scale-95 text-white text-xs font-black shadow-lg shadow-red-600/30 flex items-center justify-center gap-1.5 transition disabled:opacity-50"
-              >
-                <Trash2 size={14} />
-                {eliminando ? 'Eliminando...' : 'Sí, Eliminar de Todo'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Escáner Óptico de Fotochecks en vivo */}
+      {/* ── ESCÁNER ÓPTICO DE FOTOCHECKS ──────────────────────────────── */}
       <ScannerSimulatorModal
         isOpen={showScanner}
         onClose={() => setShowScanner(false)}
@@ -722,7 +1083,7 @@ export default function TrabajadoresPage() {
           setSearch(code)
         }}
         mode="trabajador"
-        workersList={trabajadores}
+        workersList={todosTrabajadores}
         presets={[
           { code: 'DAL-1012', label: 'Cahuaza Muena, Dempster', desc: 'DNI: 63401773 • Troquelado' },
           { code: '63401773', label: 'DNI Dempster Cahuaza (Barras)', desc: 'Troquelado de Anillas' },

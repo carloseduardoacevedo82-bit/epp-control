@@ -131,9 +131,12 @@ export async function GET(req: NextRequest) {
       if (!carpetasMap.has(nombreCarpeta)) {
         carpetasMap.set(nombreCarpeta, {
           dni: t.dni,
+          codigoFotocheck: t.codigoFotocheck || undefined,
           apellidosNombres: `${t.apellidos}, ${t.nombres}`,
           area: t.area,
           cargo: t.cargo,
+          estado: t.estado,
+          trabajadorId: t.id,
           rutaCarpeta: `/constancias/${nombreCarpeta}`,
           totalConstancias: 0,
           archivos: [],

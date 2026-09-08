@@ -166,9 +166,12 @@ export interface ConstanciaArchivoItem {
 
 export interface CarpetaTrabajadorConstancias {
   dni: string
+  codigoFotocheck?: string
   apellidosNombres: string
   area: string
   cargo: string
+  estado?: string
+  trabajadorId?: number
   rutaCarpeta: string
   totalConstancias: number
   archivos: ConstanciaArchivoItem[]

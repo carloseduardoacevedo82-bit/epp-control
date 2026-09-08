@@ -31,6 +31,8 @@ import {
   Users,
   PenLine,
   Check,
+  UserCheck,
+  FolderCheck,
 } from 'lucide-react'
 import type { CarpetaTrabajadorConstancias, ConstanciaArchivoItem, Entrega } from '@/lib/types'
 import { SUPERVISORES_OFICIALES } from '@/lib/types'
@@ -93,6 +95,8 @@ export default function ConstanciasPage() {
   const [guardandoFirmaSupervisor, setGuardandoFirmaSupervisor] = useState(false)
   const [recordarFirmaSupervisor, setRecordarFirmaSupervisor] = useState(true)
   const [mensajeExitoFirma, setMensajeExitoFirma] = useState<string>('')
+  const [filtroCarpetaEstado, setFiltroCarpetaEstado] = useState<'todas' | 'activos' | 'bajas'>('todas')
+  const [reactivandoId, setReactivandoId] = useState<number | null>(null)
 
   // Cargar firma guardada al cambiar de supervisor
   useEffect(() => {
@@ -258,7 +262,35 @@ export default function ConstanciasPage() {
     }
   }
 
+  const handleReactivarTrabajadorDesdeConstancias = async (c: CarpetaTrabajadorConstancias) => {
+    if (!c.trabajadorId) return
+    if (!confirm(`¿Desea reactivar al colaborador ${c.apellidosNombres} y trasladarlo a la carpeta de activos?`)) return
+    setReactivandoId(c.trabajadorId)
+    try {
+      const res = await fetch(`/api/trabajadores/${c.trabajadorId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: 'activo' }),
+      })
+      if (res.ok) {
+        alert(`¡Colaborador ${c.apellidosNombres} reactivado exitosamente! Trasladado a la carpeta de activos.`)
+        cargarConstancias(periodoSeleccionado)
+      } else {
+        const d = await res.json()
+        alert(`Error al reactivar: ${d.error || 'Error inesperado'}`)
+      }
+    } catch (e: any) {
+      alert(`Error de red: ${e.message}`)
+    } finally {
+      setReactivandoId(null)
+    }
+  }
+
   const carpetasFiltradas = carpetas.filter(c => {
+    // Filtrado por estado de carpeta
+    if (filtroCarpetaEstado === 'activos' && c.estado === 'inactivo') return false
+    if (filtroCarpetaEstado === 'bajas' && c.estado !== 'inactivo') return false
+
     const q = search.toLowerCase()
     return (
       c.apellidosNombres.toLowerCase().includes(q) ||
@@ -594,6 +626,54 @@ export default function ConstanciasPage() {
         </div>
       </div>
 
+      {/* ── SELECTOR DE CARPETAS DE TRABAJADORES (TODAS / ACTIVOS / BAJAS) ── */}
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          onClick={() => setFiltroCarpetaEstado('todas')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition cursor-pointer ${
+            filtroCarpetaEstado === 'todas'
+              ? 'bg-slate-800 text-white shadow-xs'
+              : 'bg-white dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 hover:text-white border border-slate-200 dark:border-slate-700'
+          }`}
+        >
+          <FolderArchive size={14} />
+          <span>Todas las Carpetas</span>
+          <span className="px-1.5 py-0.2 rounded-md bg-slate-700 text-slate-200 text-[10px] font-mono">
+            {carpetas.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setFiltroCarpetaEstado('activos')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition cursor-pointer ${
+            filtroCarpetaEstado === 'activos'
+              ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40'
+              : 'bg-white dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 hover:text-blue-400 border border-slate-200 dark:border-slate-700'
+          }`}
+        >
+          <FolderCheck size={14} className={filtroCarpetaEstado === 'activos' ? 'text-white' : 'text-cyan-400'} />
+          <span>📁 Personal Activo</span>
+          <span className="px-1.5 py-0.2 rounded-md bg-blue-800 text-cyan-200 text-[10px] font-mono">
+            {carpetas.filter(c => c.estado !== 'inactivo').length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setFiltroCarpetaEstado('bajas')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition cursor-pointer ${
+            filtroCarpetaEstado === 'bajas'
+              ? 'bg-rose-700 text-white shadow-md shadow-rose-700/25 ring-2 ring-rose-400/40'
+              : 'bg-white dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 hover:text-rose-400 border border-slate-200 dark:border-slate-700'
+          }`}
+        >
+          <FolderArchive size={14} className={filtroCarpetaEstado === 'bajas' ? 'text-white' : 'text-rose-400'} />
+          <span>📁 Personal en Baja</span>
+          <span className="px-1.5 py-0.2 rounded-md bg-rose-950 text-rose-200 text-[10px] font-mono">
+            {carpetas.filter(c => c.estado === 'inactivo').length}
+          </span>
+        </button>
+      </div>
+
       {/* ── BARRA DE BÚSQUEDA Y TOTALES EN PANTALLA ───────────────────────── */}
       <div className="card p-3.5 sm:p-4 flex flex-wrap items-center justify-between gap-3 shadow-xs">
         <div className="relative flex-1 min-w-[240px]">
@@ -704,6 +784,15 @@ export default function ConstanciasPage() {
                           <span className="font-mono text-[11px] text-blue-700 dark:text-cyan-300 font-bold bg-blue-50 dark:bg-slate-800 px-2 py-0.5 rounded-lg border border-blue-200 dark:border-slate-700 shrink-0">
                             DNI: {c.dni}
                           </span>
+                          {c.estado === 'inactivo' ? (
+                            <span className="text-[10px] font-black text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-950/80 px-2 py-0.5 rounded-full border border-rose-300 dark:border-rose-800 shrink-0">
+                              ⛔ EN BAJA
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-800 shrink-0">
+                              ● ACTIVO
+                            </span>
+                          )}
                         </div>
                         <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mt-1 truncate">
                           {c.area} • {c.cargo}
@@ -715,6 +804,21 @@ export default function ConstanciasPage() {
                     </div>
 
                     <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0 self-center">
+                      {c.estado === 'inactivo' && c.trabajadorId && (
+                        <button
+                          onClick={e => {
+                            e.stopPropagation()
+                            handleReactivarTrabajadorDesdeConstancias(c)
+                          }}
+                          disabled={reactivandoId === c.trabajadorId}
+                          className="px-2.5 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center gap-1 shadow-xs transition active:scale-95 cursor-pointer"
+                          title="Reactivar a este colaborador en el sistema"
+                        >
+                          <UserCheck size={13} />
+                          <span>{reactivandoId === c.trabajadorId ? 'Reactivando...' : 'Reactivar'}</span>
+                        </button>
+                      )}
+
                       <span className="text-[11px] sm:text-xs font-black px-2.5 sm:px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border border-blue-300 dark:border-blue-800/50 whitespace-nowrap">
                         {c.totalConstancias} {c.totalConstancias === 1 ? 'Acta' : 'Actas'}
                       </span>
