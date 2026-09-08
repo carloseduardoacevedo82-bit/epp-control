@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
 
     const trabajador = await prisma.trabajador.create({ data: dataToCreate })
     // Sincronizar en tiempo real con sistema de asistencia y fotochecks
-    sincronizarTrabajadorHaciaAsistencia(trabajador)
+    await sincronizarTrabajadorHaciaAsistencia(trabajador)
     return NextResponse.json(trabajador, { status: 201 })
   } catch (error: any) {
     console.error('Error al crear trabajador:', error)

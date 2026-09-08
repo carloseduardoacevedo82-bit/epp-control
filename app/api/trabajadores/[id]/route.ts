@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { sincronizarTrabajadorHaciaAsistencia } from '@/lib/syncAsistencia'
+import { sincronizarTrabajadorHaciaAsistencia, eliminarTrabajadorHaciaAsistencia } from '@/lib/syncAsistencia'
 import { registrarCorreccionPermanente, renombrarCarpetaYActualizarRutasConstancias } from '@/lib/persistenceService'
 import { normalizarNombreCarpeta } from '@/lib/structuredStorageService'
+import path from 'path'
+import fs from 'fs'
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -134,19 +136,115 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
-    // Baja lógica
-    const trabajador = await prisma.trabajador.update({
-      where: { id: Number(id) },
-      data: { estado: 'inactivo' },
+    const workerId = Number(id)
+    if (isNaN(workerId)) {
+      return NextResponse.json({ error: 'ID de trabajador inválido' }, { status: 400 })
+    }
+
+    const { searchParams } = new URL(req.url)
+    let permanente = searchParams.get('permanente') === 'true'
+
+    try {
+      const body = await req.json()
+      if (body?.permanente === true) permanente = true
+    } catch {}
+
+    const trabajador = await prisma.trabajador.findUnique({
+      where: { id: workerId },
     })
-    // Sincronizar baja con sistema de asistencia
-    sincronizarTrabajadorHaciaAsistencia(trabajador)
-    return NextResponse.json(trabajador)
-  } catch {
-    return NextResponse.json({ error: 'Error al dar de baja' }, { status: 500 })
+
+    if (!trabajador) {
+      return NextResponse.json({ error: 'Trabajador no encontrado' }, { status: 404 })
+    }
+
+    if (permanente) {
+      // 1. Eliminar en cascada entregas y detalles
+      const entregas = await prisma.entrega.findMany({
+        where: { trabajadorId: workerId },
+        select: { id: true },
+      })
+      const entregaIds = entregas.map((e) => e.id)
+
+      if (entregaIds.length > 0) {
+        await prisma.detalleEntrega.deleteMany({
+          where: { entregaId: { in: entregaIds } },
+        })
+      }
+
+      // 2. Eliminar constancias y entregas
+      await prisma.constanciaArchivo.deleteMany({
+        where: { trabajadorId: workerId },
+      })
+
+      await prisma.entrega.deleteMany({
+        where: { trabajadorId: workerId },
+      })
+
+      // 3. Eliminar trabajador de la base de datos
+      await prisma.trabajador.delete({
+        where: { id: workerId },
+      })
+
+      // 4. Eliminar carpeta física de constancias en disco
+      const carpetaBase = process.env.STORAGE_PATH || path.join(process.cwd(), 'public', 'constancias')
+      const nombreCarpeta = normalizarNombreCarpeta(trabajador.dni, trabajador.apellidos)
+      const carpetaPath = path.join(carpetaBase, nombreCarpeta)
+      if (fs.existsSync(carpetaPath)) {
+        try {
+          fs.rmSync(carpetaPath, { recursive: true, force: true })
+        } catch (fErr) {
+          console.warn('Nota al eliminar carpeta física:', fErr)
+        }
+      }
+
+      // 5. Eliminar de correcciones permanentes si estaba registrado
+      try {
+        const rutaJson = path.join(process.cwd(), 'data', 'correcciones_permanentes.json')
+        if (fs.existsSync(rutaJson)) {
+          const dict = JSON.parse(fs.readFileSync(rutaJson, 'utf-8'))
+          if (dict[trabajador.dni]) {
+            delete dict[trabajador.dni]
+            fs.writeFileSync(rutaJson, JSON.stringify(dict, null, 2), 'utf-8')
+          }
+        }
+      } catch (jErr) {
+        console.warn('Nota al actualizar correcciones_permanentes:', jErr)
+      }
+
+      // 6. Eliminar en el sistema de Asistencia y Fotochecks (Nube y Local)
+      await eliminarTrabajadorHaciaAsistencia(trabajador.dni)
+
+      return NextResponse.json({
+        success: true,
+        permanente: true,
+        message: `Trabajador ${trabajador.apellidos}, ${trabajador.nombres} eliminado permanentemente de todo el sistema.`,
+      })
+    } else {
+      // Baja lógica
+      const actualizado = await prisma.trabajador.update({
+        where: { id: workerId },
+        data: { estado: 'inactivo' },
+      })
+
+      // Sincronizar baja con sistema de asistencia
+      await sincronizarTrabajadorHaciaAsistencia(actualizado)
+
+      return NextResponse.json({
+        success: true,
+        permanente: false,
+        trabajador: actualizado,
+        message: `Trabajador ${actualizado.apellidos}, ${actualizado.nombres} dado de baja.`,
+      })
+    }
+  } catch (error: any) {
+    console.error('Error al procesar eliminación o baja:', error)
+    return NextResponse.json(
+      { error: error?.message || 'Error al procesar la solicitud' },
+      { status: 500 }
+    )
   }
 }
 

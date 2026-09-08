@@ -240,7 +240,7 @@ export async function sincronizarTrabajadoresDesdeAsistencia(): Promise<SyncResu
   }
 }
 
-export function sincronizarTrabajadorHaciaAsistencia(trabajador: {
+export async function sincronizarTrabajadorHaciaAsistencia(trabajador: {
   dni: string
   codigoFotocheck?: string | null
   nombres: string
@@ -252,6 +252,54 @@ export function sincronizarTrabajadorHaciaAsistencia(trabajador: {
   contactoEmergencia?: string | null
   plantaPrincipal?: string | null
 }) {
+  const dni = String(trabajador.dni).trim()
+  const statusAsistencia = trabajador.estado === 'activo' ? 'ACTIVE' : 'INACTIVE'
+  const apiUrl = process.env.ASISTENCIA_API_URL || 'https://dalupezmar-asistencia.onrender.com/api/v1'
+  const apiKey = process.env.API_INTEGRATION_KEY || 'ag_erp_live_key_982347102938471209384'
+
+  // 1. Notificar en vivo a la API en la nube (Render) de Asistencia
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 7000)
+
+    const payload = {
+      employees: [
+        {
+          document_number: dni,
+          first_name: trabajador.nombres,
+          last_name: trabajador.apellidos,
+          status: statusAsistencia,
+          position_name: trabajador.cargo,
+          department_name: trabajador.area,
+          blood_type: trabajador.grupoSanguineo || 'O+',
+          emergency_contact_phone: trabajador.contactoEmergencia || '+51 911111111',
+          employee_code: trabajador.codigoFotocheck || undefined,
+        },
+      ],
+    }
+
+    const res = await fetch(`${apiUrl}/integration/employees/sync`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    })
+    clearTimeout(timeout)
+
+    if (res.ok) {
+      console.log(`[Sync Asistencia Nube] Trabajador DNI ${dni} sincronizado con Asistencia (${statusAsistencia}).`)
+    } else {
+      const errTxt = await res.text()
+      console.warn(`[Sync Asistencia Nube] Respuesta no exitosa (${res.status}):`, errTxt)
+    }
+  } catch (apiErr: any) {
+    console.warn('[Sync Asistencia Nube] Nota al conectar con API Asistencia:', apiErr.message)
+  }
+
+  // 2. Respaldo directo en SQLite local si se corre en entorno de desarrollo local
   try {
     const posiblesRutas = [
       path.join(process.cwd(), '..', 'sistema-asistencia-fotocheck', 'database', 'asistencia.db'),
@@ -270,8 +318,6 @@ export function sincronizarTrabajadorHaciaAsistencia(trabajador: {
     if (!dbAsistenciaPath) return
 
     const asisDb = getAsistenciaDb(dbAsistenciaPath)
-    const dni = String(trabajador.dni).trim()
-    const statusAsistencia = trabajador.estado === 'activo' ? 'ACTIVE' : 'INACTIVE'
 
     // Buscar si existe en employees
     const emp = asisDb.prepare('SELECT id FROM employees WHERE document_number = ?').get(dni) as any
@@ -296,6 +342,74 @@ export function sincronizarTrabajadorHaciaAsistencia(trabajador: {
       asisDb.prepare('UPDATE badges SET status = ? WHERE employee_id = ?').run(badgeStatus, emp.id)
     }
   } catch (err: any) {
-    console.warn('Nota al sincronizar hacia base de datos local:', err.message)
+    console.warn('[Sync Asistencia Local] Nota al sincronizar hacia SQLite local:', err.message)
   }
 }
+
+/**
+ * Eliminar a un trabajador permanentemente del sistema de Asistencia y Fotochecks (Nube y Local)
+ */
+export async function eliminarTrabajadorHaciaAsistencia(dni: string) {
+  const dniLimpio = String(dni).trim()
+  const apiUrl = process.env.ASISTENCIA_API_URL || 'https://dalupezmar-asistencia.onrender.com/api/v1'
+  const apiKey = process.env.API_INTEGRATION_KEY || 'ag_erp_live_key_982347102938471209384'
+
+  // 1. Notificar eliminación definitiva a la API en la nube (Render)
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 7000)
+
+    const res = await fetch(`${apiUrl}/integration/employees/${encodeURIComponent(dniLimpio)}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+      },
+      signal: controller.signal,
+    })
+    clearTimeout(timeout)
+
+    if (res.ok) {
+      console.log(`[Sync Asistencia Nube] Trabajador DNI ${dniLimpio} eliminado de Asistencia en la nube.`)
+    } else {
+      const errTxt = await res.text()
+      console.warn(`[Sync Asistencia Nube] Respuesta no exitosa al eliminar (${res.status}):`, errTxt)
+    }
+  } catch (apiErr: any) {
+    console.warn('[Sync Asistencia Nube] Nota al solicitar eliminación en Asistencia nube:', apiErr.message)
+  }
+
+  // 2. Respaldo directo en SQLite local
+  try {
+    const posiblesRutas = [
+      path.join(process.cwd(), '..', 'sistema-asistencia-fotocheck', 'database', 'asistencia.db'),
+      path.join(process.cwd(), 'scratch', 'sistema-asistencia-fotocheck', 'database', 'asistencia.db'),
+      'C:/Users/Carlos/.gemini/antigravity-ide/scratch/sistema-asistencia-fotocheck/database/asistencia.db',
+    ]
+
+    let dbAsistenciaPath = ''
+    for (const r of posiblesRutas) {
+      if (fs.existsSync(r)) {
+        dbAsistenciaPath = r
+        break
+      }
+    }
+
+    if (!dbAsistenciaPath) return
+
+    const asisDb = getAsistenciaDb(dbAsistenciaPath)
+    const emp = asisDb.prepare('SELECT id FROM employees WHERE document_number = ?').get(dniLimpio) as any
+
+    if (emp) {
+      asisDb.prepare('DELETE FROM badges WHERE employee_id = ?').run(emp.id)
+      asisDb.prepare('DELETE FROM attendance_logs WHERE employee_id = ?').run(emp.id)
+      asisDb.prepare('DELETE FROM attendances WHERE employee_id = ?').run(emp.id)
+      asisDb.prepare('DELETE FROM justifications WHERE employee_id = ?').run(emp.id)
+      asisDb.prepare('DELETE FROM employees WHERE id = ?').run(emp.id)
+      console.log(`[Sync Asistencia Local] Trabajador DNI ${dniLimpio} eliminado de SQLite local.`)
+    }
+  } catch (err: any) {
+    console.warn('[Sync Asistencia Local] Nota al eliminar de SQLite local:', err.message)
+  }
+}
+

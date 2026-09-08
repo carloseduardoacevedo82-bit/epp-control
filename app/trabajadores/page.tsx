@@ -24,6 +24,7 @@ import {
   AlertCircle,
   HardHat,
   Droplet,
+  Trash2,
 } from 'lucide-react'
 import type { Trabajador } from '@/lib/types'
 import { AREAS, TALLAS_CALZADO, TALLAS_ROPA, TALLAS_PANTALON } from '@/lib/types'
@@ -59,6 +60,8 @@ export default function TrabajadoresPage() {
   const [syncing, setSyncing] = useState(false)
   const [syncMessage, setSyncMessage] = useState<string | null>(null)
   const [editando, setEditando] = useState<Trabajador | null>(null)
+  const [trabajadorAEliminar, setTrabajadorAEliminar] = useState<Trabajador | null>(null)
+  const [eliminando, setEliminando] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -175,6 +178,29 @@ export default function TrabajadoresPage() {
       body: JSON.stringify({ estado: nuevoEstado }),
     })
     cargar()
+  }
+
+  const confirmarEliminarPermanente = async () => {
+    if (!trabajadorAEliminar) return
+    setEliminando(true)
+    try {
+      const res = await fetch(`/api/trabajadores/${trabajadorAEliminar.id}?permanente=true`, {
+        method: 'DELETE',
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setSyncMessage(`🗑️ ${data.message || 'Trabajador eliminado permanentemente de todo el sistema.'}`)
+        setTrabajadorAEliminar(null)
+        setShowModal(false)
+        cargar()
+      } else {
+        alert(`Error al eliminar: ${data.error || 'Ocurrió un error inesperado'}`)
+      }
+    } catch (err: any) {
+      alert(`Error de conexión: ${err.message}`)
+    } finally {
+      setEliminando(false)
+    }
   }
 
   return (
@@ -396,6 +422,13 @@ export default function TrabajadoresPage() {
                         >
                           {t.estado === 'activo' ? <UserX size={13} /> : <UserCheck size={13} />}
                         </button>
+                        <button
+                          onClick={() => setTrabajadorAEliminar(t)}
+                          className="p-2 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 hover:bg-red-600 hover:text-white transition shadow-2xs border border-red-200 dark:border-red-800/50"
+                          title="Eliminar permanentemente de todo el sistema (EPP y Asistencia)"
+                        >
+                          <Trash2 size={13} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -589,19 +622,92 @@ export default function TrabajadoresPage() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-200 dark:border-slate-700">
+            <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3 border-t border-slate-200 dark:border-slate-700">
+              {editando ? (
+                <button
+                  type="button"
+                  onClick={() => setTrabajadorAEliminar(editando)}
+                  className="px-3.5 py-2 rounded-xl bg-red-50 dark:bg-red-950/40 hover:bg-red-600 text-red-600 dark:text-red-400 hover:text-white text-xs font-bold flex items-center gap-1.5 border border-red-300 dark:border-red-800/60 transition active:scale-95"
+                  title="Eliminar permanentemente de EPP Control y Asistencia"
+                >
+                  <Trash2 size={14} /> Eliminar Permanentemente
+                </button>
+              ) : (
+                <div />
+              )}
+              <div className="flex items-center gap-2 ml-auto">
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={guardar}
+                  disabled={saving}
+                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-blue-500/20 active:scale-95"
+                >
+                  <Save size={14} /> {saving ? 'Guardando...' : 'Guardar y Sincronizar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmación de Eliminación Permanente */}
+      {trabajadorAEliminar && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 border-2 border-red-500/40 rounded-3xl p-6 shadow-2xl space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-red-500/15 text-red-500 flex items-center justify-center mx-auto mb-2">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-2">
+              <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                ¿Eliminar definitivamente?
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                Estás a punto de eliminar de forma permanente e irreversible a:
+              </p>
+              <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-2xl text-left space-y-1">
+                <p className="text-sm font-black text-slate-900 dark:text-white">
+                  {trabajadorAEliminar.apellidos}, {trabajadorAEliminar.nombres}
+                </p>
+                <p className="text-xs font-mono text-slate-600 dark:text-slate-400">
+                  DNI: <span className="font-bold text-red-600 dark:text-red-400">{trabajadorAEliminar.dni}</span> • {trabajadorAEliminar.cargo}
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  Entregas de EPP registradas: <span className="font-bold">{trabajadorAEliminar._count?.entregas ?? 0}</span>
+                </p>
+              </div>
+              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-left">
+                <p className="text-[11px] font-bold text-amber-700 dark:text-amber-300 flex items-start gap-1.5">
+                  <AlertCircle size={15} className="shrink-0 mt-0.5 text-amber-500" />
+                  <span>
+                    Esta acción eliminará al colaborador de <strong>EPP Control</strong> (incluyendo historial de actas y carpetas de constancias) y del sistema de <strong>Asistencia DALUPEZMAR</strong> en vivo.
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
               <button
-                onClick={() => setShowModal(false)}
-                className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold"
+                type="button"
+                onClick={() => setTrabajadorAEliminar(null)}
+                disabled={eliminando}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold transition disabled:opacity-50"
               >
                 Cancelar
               </button>
               <button
-                onClick={guardar}
-                disabled={saving}
-                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-blue-500/20 active:scale-95"
+                type="button"
+                onClick={confirmarEliminarPermanente}
+                disabled={eliminando}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-700 active:scale-95 text-white text-xs font-black shadow-lg shadow-red-600/30 flex items-center justify-center gap-1.5 transition disabled:opacity-50"
               >
-                <Save size={14} /> {saving ? 'Guardando...' : 'Guardar y Sincronizar'}
+                <Trash2 size={14} />
+                {eliminando ? 'Eliminando...' : 'Sí, Eliminar de Todo'}
               </button>
             </div>
           </div>
