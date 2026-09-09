@@ -254,12 +254,28 @@ function EditarEntregaContent() {
 
     try {
       const supActual = getSupervisorActual()
+
+      // Construir el body de forma conservadora:
+      // Si el usuario mantuvo la firma existente → enviamos la URL original (el backend la acepta como nueva)
+      // Si no hay firma en absoluto → no enviamos el campo (el backend preserva el existente)
+      const firmaColaboradorEnviar = firmaBase64 // ya validado arriba que no es null
+      const firmaSupervisorEnviar = firmaSupervisorBase64 // puede ser null si no hay firma de supervisor
+
       const body: Record<string, unknown> = {
         detalles: items.map(i => ({ articuloId: i.articulo.id, cantidad: i.cantidad })),
-        firmaDigitalUrl: firmaBase64,
-        firmaSupervisorUrl: firmaSupervisorBase64 || null,
-        supervisorNombre: firmaSupervisorBase64 ? supActual.nombre : null,
-        supervisorCargo: firmaSupervisorBase64 ? supActual.cargo : null,
+        // Firma del colaborador: siempre enviamos porque el botón de guardar exige que exista
+        firmaDigitalUrl: firmaColaboradorEnviar,
+        // Firma del supervisor: solo enviamos si hay firma real;
+        // si es null y el usuario NO la borró explícitamente → no la enviamos (el backend la preserva)
+        ...(firmaSupervisorEnviar
+          ? {
+              firmaSupervisorUrl: firmaSupervisorEnviar,
+              supervisorNombre: supActual.nombre,
+              supervisorCargo: supActual.cargo,
+            }
+          : mantenerFirmaSupervisor
+          ? {} // checkbox "mantener" activo y sin nueva firma → no enviar campo (backend preserva)
+          : { clearFirmaSupervisor: true }), // usuario desmarcó "mantener" y no tiene nueva firma → borrar
         observaciones: observaciones || null,
         fechaEntrega: fechaEntregaForm
           ? new Date(`${fechaEntregaForm}T12:00:00`).toISOString()
