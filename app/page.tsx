@@ -11,7 +11,7 @@ import {
   TrendingUp, Activity, PackagePlus, FileSpreadsheet,
   Download, ArrowRight, ShieldCheck, HardHat, FileText,
   Clock, CheckCircle2, ChevronRight, Scan, Sparkles, FolderArchive,
-  Calendar, Eye, ExternalLink,
+  Calendar, Eye, ExternalLink, Edit3,
 } from 'lucide-react'
 import { useRole } from '@/components/auth/RoleContext'
 import { useTheme } from '@/components/ThemeProvider'
@@ -530,20 +530,34 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* Footer: Estado y Botón Ver PDF */}
-                <div className="mt-3.5 pt-2.5 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between">
-                  <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 px-2.5 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-700/60">
-                    <CheckCircle2 size={12} className="text-emerald-600 dark:text-emerald-400" /> Firmada
+                {/* Footer: Estado + Botones Editar y Ver PDF */}
+                <div className="mt-3.5 pt-2.5 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between gap-2">
+                  <span className={`inline-flex items-center gap-1 text-[11px] font-black px-2.5 py-0.5 rounded-full border ${
+                    e.firmaDigitalUrl
+                      ? 'text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 border-emerald-300 dark:border-emerald-700/60'
+                      : 'text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/80 border-amber-300 dark:border-amber-700/60'
+                  }`}>
+                    <CheckCircle2 size={12} className={e.firmaDigitalUrl ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-500'} />
+                    {e.firmaDigitalUrl ? 'Firmada' : 'Sin firma'}
                   </span>
-                  <a
-                    href={`/api/entregas/${e.id}/pdf`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:text-blue-800 dark:text-cyan-300 dark:hover:text-cyan-200 bg-blue-50 hover:bg-blue-100 dark:bg-slate-700/80 dark:hover:bg-slate-700 px-3 py-1.5 rounded-xl transition shadow-2xs"
-                    title="Abrir acta oficial en el visor nativo de su celular, tablet o PC"
-                  >
-                    <Eye size={12} /> Ver PDF <ExternalLink size={11} className="opacity-70" />
-                  </a>
+                  <div className="flex items-center gap-1.5">
+                    <Link
+                      href={`/entregas/${e.id}/editar`}
+                      className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-950/60 px-2.5 py-1.5 rounded-xl transition shadow-2xs border border-amber-200/80 dark:border-amber-800/50"
+                      title="Editar artículos y firmas de esta entrega"
+                    >
+                      <Edit3 size={11} /> Editar
+                    </Link>
+                    <a
+                      href={`/api/entregas/${e.id}/pdf`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:text-blue-800 dark:text-cyan-300 dark:hover:text-cyan-200 bg-blue-50 hover:bg-blue-100 dark:bg-slate-700/80 dark:hover:bg-slate-700 px-2.5 py-1.5 rounded-xl transition shadow-2xs"
+                      title="Abrir acta oficial en el visor nativo de su celular, tablet o PC"
+                    >
+                      <Eye size={12} /> PDF <ExternalLink size={11} className="opacity-70" />
+                    </a>
+                  </div>
                 </div>
               </div>
             )

@@ -33,6 +33,7 @@ import {
   Check,
   UserCheck,
   FolderCheck,
+  Edit3,
 } from 'lucide-react'
 import type { CarpetaTrabajadorConstancias, ConstanciaArchivoItem, Entrega } from '@/lib/types'
 import { SUPERVISORES_OFICIALES } from '@/lib/types'
@@ -892,6 +893,14 @@ export default function ConstanciasPage() {
                               <PenLine size={12} /> ✍️ Firmar como Supervisor
                             </button>
                           )}
+
+                          <Link
+                            href={`/entregas/${archivo.entregaId}/editar`}
+                            className="px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-950/60 text-amber-700 dark:text-amber-300 text-xs font-bold flex items-center gap-1.5 border border-amber-200 dark:border-amber-800/50 transition active:scale-95 shadow-2xs"
+                            title="Editar artículos y firmas de esta entrega"
+                          >
+                            <Edit3 size={12} /> Editar
+                          </Link>
 
                           <a
                             href={`/api/entregas/${archivo.entregaId}/pdf`}
