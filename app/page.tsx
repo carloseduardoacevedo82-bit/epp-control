@@ -113,7 +113,6 @@ export default function DashboardPage() {
   const [showScannerModal, setShowScannerModal] = useState(false)
 
   const cargarDashboard = async () => {
-    setLoading(true)
     try {
       const [resDash, resEntregas] = await Promise.allSettled([
         fetch('/api/dashboard').then(r => (r.ok ? r.json() : null)),
@@ -125,13 +124,13 @@ export default function DashboardPage() {
       } else {
         setData({
           kpis: {
-            totalTrabajadoresActivos: 89,
-            gastoTotalAcumulado: 1520,
+            totalTrabajadoresActivos: 0,
+            gastoTotalAcumulado: 0,
             entregasDelMes: 0,
             alertasCriticas: 0,
           },
-          consumoPorArea: [{ area: 'Producción', gasto: 1520, entregas: 26 }],
-          consumoPorCategoria: [{ categoria: 'Uniforme', gasto: 780, cantidad: 30 }],
+          consumoPorArea: [],
+          consumoPorCategoria: [],
         })
       }
 
@@ -147,6 +146,22 @@ export default function DashboardPage() {
 
   useEffect(() => {
     cargarDashboard()
+
+    // Sincronizar en segundo plano con Asistencia para mantener KPIs exactos
+    fetch('/api/sync-asistencia', { method: 'POST' })
+      .then(r => r.json())
+      .then(d => {
+        if (d && (d.creados > 0 || d.actualizados > 0 || d.inactivados > 0)) {
+          cargarDashboard()
+        }
+      })
+      .catch(() => {})
+
+    const onFocus = () => {
+      cargarDashboard()
+    }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
   }, [])
 
   const handleScanCode = (code: string) => {

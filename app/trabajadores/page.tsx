@@ -69,13 +69,13 @@ export default function TrabajadoresPage() {
   const [procesandoEstado, setProcesandoEstado] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [syncMessage, setSyncMessage] = useState<string | null>(null)
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   // Cargar todos los colaboradores desde el backend
   const cargar = useCallback(async () => {
-    setLoading(true)
     try {
       const res = await fetch('/api/trabajadores')
       const data = await res.json()
@@ -89,9 +89,72 @@ export default function TrabajadoresPage() {
     }
   }, [])
 
+  // Sincronización en segundo plano automática
+  const sincronizarAuto = useCallback(async (isManual = false) => {
+    if (syncing) return
+    if (isManual) setSyncing(true)
+    try {
+      const res = await fetch('/api/sync-asistencia', { method: 'POST' })
+      const data = await res.json()
+      if (data && data.success) {
+        setLastSyncTime(new Date())
+        if (data.creados > 0 || data.actualizados > 0 || data.inactivados > 0) {
+          await cargar()
+          if (isManual) {
+            setSyncMessage(
+              `✅ Sincronizados: ${data.totalAsistencia} colaboradores (${data.creados} nuevos, ${data.actualizados} actualizados, ${data.inactivados} dados de baja)`
+            )
+          } else {
+            setSyncMessage(
+              `🔄 Nómina actualizada automáticamente desde Asistencia (${data.creados} nuevos, ${data.actualizados} actualizados)`
+            )
+            setTimeout(() => setSyncMessage(null), 5000)
+          }
+        } else if (isManual) {
+          setSyncMessage(`✅ Nómina al día (${data.totalAsistencia} colaboradores sincronizados con Asistencia).`)
+          setTimeout(() => setSyncMessage(null), 5000)
+        }
+      } else if (isManual) {
+        setSyncMessage(`⚠️ Error: ${data.error || 'No se pudo sincronizar'}`)
+      }
+    } catch (e: any) {
+      if (isManual) setSyncMessage(`⚠️ Error de red al sincronizar: ${e.message}`)
+    } finally {
+      if (isManual) setSyncing(false)
+    }
+  }, [cargar, syncing])
+
   useEffect(() => {
     cargar()
-  }, [cargar])
+    // Auto-sincronizar inmediatamente al abrir la página
+    sincronizarAuto(false)
+
+    // Listener para auto-sincronizar cada vez que el usuario vuelve a esta pestaña
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        cargar()
+        sincronizarAuto(false)
+      }
+    }
+    const onWindowFocus = () => {
+      cargar()
+      sincronizarAuto(false)
+    }
+
+    window.addEventListener('visibilitychange', onVisibilityChange)
+    window.addEventListener('focus', onWindowFocus)
+
+    // Intervalo de auto-sincronización periódica cada 45 segundos
+    const interval = setInterval(() => {
+      sincronizarAuto(false)
+    }, 45000)
+
+    return () => {
+      window.removeEventListener('visibilitychange', onVisibilityChange)
+      window.removeEventListener('focus', onWindowFocus)
+      clearInterval(interval)
+    }
+  }, [cargar, sincronizarAuto])
 
   // Contadores dinámicos para las carpetas
   const totalActivos = todosTrabajadores.filter(t => t.estado === 'activo').length
@@ -135,25 +198,7 @@ export default function TrabajadoresPage() {
 
   // Sincronizar manualmente con el sistema de Asistencia y Fotochecks
   const handleSincronizar = async () => {
-    setSyncing(true)
-    setSyncMessage(null)
-    try {
-      const res = await fetch('/api/sync-asistencia', { method: 'POST' })
-      const data = await res.json()
-      if (data.success) {
-        setSyncMessage(
-          `✅ Sincronizados: ${data.totalAsistencia} colaboradores (${data.creados} nuevos, ${data.actualizados} actualizados)`
-        )
-        cargar()
-      } else {
-        setSyncMessage(`⚠️ Error: ${data.error}`)
-      }
-    } catch (e: any) {
-      setSyncMessage(`⚠️ Error de red al sincronizar: ${e.message}`)
-    } finally {
-      setSyncing(false)
-      setTimeout(() => setSyncMessage(null), 7000)
-    }
+    await sincronizarAuto(true)
   }
 
   const abrirNuevo = () => {
@@ -311,11 +356,17 @@ export default function TrabajadoresPage() {
             <Users className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-              Padrón General de Colaboradores
-            </h1>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                Padrón General de Colaboradores
+              </h1>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                Auto-Sync en Vivo
+              </span>
+            </div>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
-              Personal clasificado por carpetas de nómina con sincronización en vivo hacia Fotochecks y Asistencia DALUPEZMAR
+              Personal clasificado por carpetas de nómina con sincronización automática en tiempo real con Asistencia DALUPEZMAR
             </p>
           </div>
         </div>
@@ -325,10 +376,10 @@ export default function TrabajadoresPage() {
             onClick={handleSincronizar}
             disabled={syncing}
             className="px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-cyan-700 dark:text-cyan-300 border border-slate-300 dark:border-slate-700 text-xs font-bold flex items-center gap-1.5 shadow-xs transition active:scale-95 disabled:opacity-50"
-            title="Sincronizar altas, bajas y cambios con la base de datos de Asistencia y Fotochecks"
+            title="Forzar comprobación manual inmediata con el sistema de Asistencia y Fotochecks"
           >
             <RefreshCw size={14} className={syncing ? 'animate-spin text-cyan-500' : ''} />
-            {syncing ? 'Sincronizando...' : 'Sincronizar Asistencia'}
+            {syncing ? 'Sincronizando...' : 'Comprobar Ahora'}
           </button>
 
           <button

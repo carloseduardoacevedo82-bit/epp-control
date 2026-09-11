@@ -31,29 +31,34 @@ export interface SyncResult {
 async function obtenerColaboradoresDesdeAsistencia(): Promise<{ employees: any[]; origen: 'NUBE_API' | 'SQLITE_LOCAL' }> {
   const apiUrl = process.env.ASISTENCIA_API_URL || 'https://dalupezmar-asistencia.onrender.com/api/v1'
   
-  // 1. Intentar primero consumir la API en la nube oficial de DALUPEZMAR Asistencia
-  try {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 8000)
+  // 1. Intentar consumir la API en la nube oficial de DALUPEZMAR Asistencia con reintentos para Render cold starts
+  for (let intento = 1; intento <= 3; intento++) {
+    try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 15000)
 
-    const res = await fetch(`${apiUrl}/sync/employees`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'EPP-Control-Sync/1.0'
-      },
-      signal: controller.signal
-    })
-    clearTimeout(timeoutId)
+      const res = await fetch(`${apiUrl}/sync/employees`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'EPP-Control-Sync/1.0'
+        },
+        signal: controller.signal
+      })
+      clearTimeout(timeoutId)
 
-    if (res.ok) {
-      const json = await res.json()
-      if (json && json.success && Array.isArray(json.data) && json.data.length > 0) {
-        return { employees: json.data, origen: 'NUBE_API' }
+      if (res.ok) {
+        const json = await res.json()
+        if (json && json.success && Array.isArray(json.data) && json.data.length > 0) {
+          return { employees: json.data, origen: 'NUBE_API' }
+        }
+      }
+    } catch (apiErr: any) {
+      console.warn(`[Sync Asistencia] Intento ${intento}/3 hacia API nube:`, apiErr.message)
+      if (intento < 3) {
+        await new Promise(r => setTimeout(r, 1000 * intento))
       }
     }
-  } catch (apiErr: any) {
-    console.warn('[Sync Asistencia] No se pudo conectar a la API nube de Asistencia:', apiErr.message)
   }
 
   // 2. Fallback a base de datos SQLite local si se ejecuta en entorno local
@@ -257,46 +262,50 @@ export async function sincronizarTrabajadorHaciaAsistencia(trabajador: {
   const apiUrl = process.env.ASISTENCIA_API_URL || 'https://dalupezmar-asistencia.onrender.com/api/v1'
   const apiKey = process.env.API_INTEGRATION_KEY || 'ag_erp_live_key_982347102938471209384'
 
-  // 1. Notificar en vivo a la API en la nube (Render) de Asistencia
-  try {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 7000)
+  // 1. Notificar en vivo a la API en la nube (Render) de Asistencia con reintentos
+  for (let intento = 1; intento <= 3; intento++) {
+    try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 15000)
 
-    const payload = {
-      employees: [
-        {
-          document_number: dni,
-          first_name: trabajador.nombres,
-          last_name: trabajador.apellidos,
-          status: statusAsistencia,
-          position_name: trabajador.cargo,
-          department_name: trabajador.area,
-          blood_type: trabajador.grupoSanguineo || 'O+',
-          emergency_contact_phone: trabajador.contactoEmergencia || '+51 911111111',
-          employee_code: trabajador.codigoFotocheck || undefined,
+      const payload = {
+        employees: [
+          {
+            document_number: dni,
+            first_name: trabajador.nombres,
+            last_name: trabajador.apellidos,
+            status: statusAsistencia,
+            position_name: trabajador.cargo,
+            department_name: trabajador.area,
+            blood_type: trabajador.grupoSanguineo || 'O+',
+            emergency_contact_phone: trabajador.contactoEmergencia || '+51 911111111',
+            employee_code: trabajador.codigoFotocheck || undefined,
+          },
+        ],
+      }
+
+      const res = await fetch(`${apiUrl}/integration/employees/sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
         },
-      ],
-    }
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      })
+      clearTimeout(timeout)
 
-    const res = await fetch(`${apiUrl}/integration/employees/sync`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-      },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    })
-    clearTimeout(timeout)
-
-    if (res.ok) {
-      console.log(`[Sync Asistencia Nube] Trabajador DNI ${dni} sincronizado con Asistencia (${statusAsistencia}).`)
-    } else {
-      const errTxt = await res.text()
-      console.warn(`[Sync Asistencia Nube] Respuesta no exitosa (${res.status}):`, errTxt)
+      if (res.ok) {
+        console.log(`[Sync Asistencia Nube] Trabajador DNI ${dni} sincronizado con Asistencia (${statusAsistencia}).`)
+        break
+      } else {
+        const errTxt = await res.text()
+        console.warn(`[Sync Asistencia Nube] Intento ${intento}/3 respuesta (${res.status}):`, errTxt)
+      }
+    } catch (apiErr: any) {
+      console.warn(`[Sync Asistencia Nube] Intento ${intento}/3 error:`, apiErr.message)
+      if (intento < 3) await new Promise(r => setTimeout(r, 1000 * intento))
     }
-  } catch (apiErr: any) {
-    console.warn('[Sync Asistencia Nube] Nota al conectar con API Asistencia:', apiErr.message)
   }
 
   // 2. Respaldo directo en SQLite local si se corre en entorno de desarrollo local
@@ -354,29 +363,33 @@ export async function eliminarTrabajadorHaciaAsistencia(dni: string) {
   const apiUrl = process.env.ASISTENCIA_API_URL || 'https://dalupezmar-asistencia.onrender.com/api/v1'
   const apiKey = process.env.API_INTEGRATION_KEY || 'ag_erp_live_key_982347102938471209384'
 
-  // 1. Notificar eliminación definitiva a la API en la nube (Render)
-  try {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 7000)
+  // 1. Notificar eliminación definitiva a la API en la nube (Render) con reintentos
+  for (let intento = 1; intento <= 3; intento++) {
+    try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 15000)
 
-    const res = await fetch(`${apiUrl}/integration/employees/${encodeURIComponent(dniLimpio)}`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-      },
-      signal: controller.signal,
-    })
-    clearTimeout(timeout)
+      const res = await fetch(`${apiUrl}/integration/employees/${encodeURIComponent(dniLimpio)}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+        },
+        signal: controller.signal,
+      })
+      clearTimeout(timeout)
 
-    if (res.ok) {
-      console.log(`[Sync Asistencia Nube] Trabajador DNI ${dniLimpio} eliminado de Asistencia en la nube.`)
-    } else {
-      const errTxt = await res.text()
-      console.warn(`[Sync Asistencia Nube] Respuesta no exitosa al eliminar (${res.status}):`, errTxt)
+      if (res.ok) {
+        console.log(`[Sync Asistencia Nube] Trabajador DNI ${dniLimpio} eliminado de Asistencia en la nube.`)
+        break
+      } else {
+        const errTxt = await res.text()
+        console.warn(`[Sync Asistencia Nube] Intento ${intento}/3 respuesta al eliminar (${res.status}):`, errTxt)
+      }
+    } catch (apiErr: any) {
+      console.warn(`[Sync Asistencia Nube] Intento ${intento}/3 error al eliminar:`, apiErr.message)
+      if (intento < 3) await new Promise(r => setTimeout(r, 1000 * intento))
     }
-  } catch (apiErr: any) {
-    console.warn('[Sync Asistencia Nube] Nota al solicitar eliminación en Asistencia nube:', apiErr.message)
   }
 
   // 2. Respaldo directo en SQLite local
