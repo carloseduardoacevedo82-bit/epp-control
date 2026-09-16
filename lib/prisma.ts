@@ -3,92 +3,37 @@ import { PrismaLibSql } from '@prisma/adapter-libsql'
 import path from 'path'
 import fs from 'fs'
 
-function resolverRutaSqlite(): string {
-  const rawUrl = process.env.DATABASE_URL
+const TURSO_DEFAULT_URL = 'libsql://epp-db-carloseduardoacevedo82-bit.aws-us-east-2.turso.io'
+const TURSO_DEFAULT_TOKEN = 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODk1MjgwMzUsImlkIjoiMDFhMGE4MmItZTMwMS03NDYxLWJjOGYtMzM2NWJmMjdhZjgwIiwia2lkIjoiRnJYRXpmeTc2TkhJTjdmMmdwRDZzVThMZUVtb0RReTRCYkl6WjJsUzJSVSIsInJpZCI6IjVjZWNlY2I2LWZkNWMtNGQ2Mi05ZTUzLTliYzUxMzAyMzkzMyJ9.WLK4_JR3A0DmXselJNH6we0hzFdk-Grh7iBN5iDTYHLQ1U7rAyT_W2yvWQ8TfpjSySIz_jKWPAqAGrxIwm1yBw'
 
-  // 1. Si se define una URL de base de datos remota o PostgreSQL
-  if (rawUrl && (rawUrl.startsWith('postgresql://') || rawUrl.startsWith('postgres://') || rawUrl.startsWith('libsql://') || rawUrl.startsWith('https://') || rawUrl.startsWith('http://'))) {
+function resolverRutaSqlite(): string {
+  const rawUrl = process.env.DATABASE_URL || TURSO_DEFAULT_URL
+
+  // 1. Si se define una URL de base de datos remota LibSQL o PostgreSQL
+  if (
+    rawUrl &&
+    (rawUrl.startsWith('postgresql://') ||
+      rawUrl.startsWith('postgres://') ||
+      rawUrl.startsWith('libsql://') ||
+      rawUrl.startsWith('https://') ||
+      rawUrl.startsWith('http://'))
+  ) {
     return rawUrl
   }
 
   // 2. Si se especificó explícitamente una ruta de archivo en DATABASE_URL
   if (rawUrl && rawUrl.startsWith('file:')) {
     const rawPath = rawUrl.replace(/^file:/, '')
-    // Si la ruta ya es absoluta
     if (path.isAbsolute(rawPath)) return `file:${rawPath}`
     return `file:${path.resolve(process.cwd(), rawPath)}`
   }
 
-  // 3. Buscar bases de datos SQLite existentes en el proyecto
-  const candidatos = [
-    path.join(process.cwd(), 'data', 'dev.db'),
-    path.join(process.cwd(), 'dev.db'),
-    path.join(process.cwd(), 'prisma', 'dev.db'),
-    '/app/data/dev.db',
-    '/app/dev.db',
-  ]
-
-  let baseExistente = ''
-  for (const c of candidatos) {
-    try {
-      if (fs.existsSync(c)) {
-        baseExistente = c
-        break
-      }
-    } catch {}
-  }
-
-  // 4. En entornos Linux / Docker / Render:
-  // Para evitar estrictamente el error SQLITE_READONLY debido a permisos de directorio en /app,
-  // nos aseguramos de que el archivo SQLite resida en un directorio con permisos completos de escritura (como /app/data o /tmp).
-  if (process.platform !== 'win32') {
-    const directorioEscribible = fs.existsSync('/app/data') ? '/app/data' : '/tmp'
-    const targetPath = path.join(directorioEscribible, 'dev.db')
-
-    try {
-      // Si aún no existe en el directorio escribible pero hay una base semilla existente, copiarla
-      if (!fs.existsSync(targetPath) && baseExistente && fs.existsSync(baseExistente)) {
-        fs.copyFileSync(baseExistente, targetPath)
-        try {
-          fs.chmodSync(targetPath, 0o666)
-        } catch {}
-      }
-
-      // Asegurar permisos en el directorio escribible
-      try {
-        fs.chmodSync(directorioEscribible, 0o777)
-      } catch {}
-
-      if (fs.existsSync(targetPath)) {
-        // Asegurar consistencia y correcciones permanentes de trabajadores en SQLite
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const { asegurarConsistenciaEnSqlite } = require('./persistenceService')
-          asegurarConsistenciaEnSqlite(targetPath)
-        } catch (syncErr) {
-          console.warn('[Prisma] Nota al verificar persistencia en targetPath:', syncErr)
-        }
-        return `file:${targetPath}`
-      }
-    } catch (e) {
-      console.warn('[Prisma LibSQL] Advertencia al configurar ruta escribible SQLite:', e)
-    }
-  }
-
-  // 5. Entorno local Windows / Desarrollo
-  const localDb = baseExistente || path.join(process.cwd(), 'dev.db')
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { asegurarConsistenciaEnSqlite } = require('./persistenceService')
-    asegurarConsistenciaEnSqlite(localDb)
-  } catch (syncErr) {
-    console.warn('[Prisma] Nota al verificar persistencia en localDb:', syncErr)
-  }
-  return `file:${localDb}`
+  // 3. Fallback por defecto a la base de datos Turso Cloud
+  return TURSO_DEFAULT_URL
 }
 
 function createPrismaClient() {
-  const rawUrl = process.env.DATABASE_URL
+  const rawUrl = process.env.DATABASE_URL || TURSO_DEFAULT_URL
 
   // Soporte nativo para PostgreSQL
   if (rawUrl && (rawUrl.startsWith('postgresql://') || rawUrl.startsWith('postgres://'))) {
@@ -96,7 +41,9 @@ function createPrismaClient() {
   }
 
   const dbUrl = resolverRutaSqlite()
-  const authToken = process.env.TURSO_AUTH_TOKEN || undefined
+  const authToken = process.env.TURSO_AUTH_TOKEN || TURSO_DEFAULT_TOKEN
+
+  console.log(`[Prisma Database] Conectando a persistencia: ${dbUrl.startsWith('libsql://') ? 'Turso Cloud 24/7' : dbUrl}`)
 
   const adapter = new PrismaLibSql({
     url: dbUrl,

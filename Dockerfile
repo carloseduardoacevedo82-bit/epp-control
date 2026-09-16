@@ -44,6 +44,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV HOSTNAME="0.0.0.0"
+ENV DATABASE_URL="libsql://epp-db-carloseduardoacevedo82-bit.aws-us-east-2.turso.io"
+ENV TURSO_AUTH_TOKEN="eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODk1MjgwMzUsImlkIjoiMDFhMGE4MmItZTMwMS03NDYxLWJjOGYtMzM2NWJmMjdhZjgwIiwia2lkIjoiRnJYRXpmeTc2TkhJTjdmMmdwRDZzVThMZUVtb0RReTRCYkl6WjJsUzJSVSIsInJpZCI6IjVjZWNlY2I2LWZkNWMtNGQ2Mi05ZTUzLTliYzUxMzAyMzkzMyJ9.WLK4_JR3A0DmXselJNH6we0hzFdk-Grh7iBN5iDTYHLQ1U7rAyT_W2yvWQ8TfpjSySIz_jKWPAqAGrxIwm1yBw"
 
 
 # Crear usuario y grupo de seguridad sin privilegios root
