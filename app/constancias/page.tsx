@@ -333,10 +333,10 @@ export default function ConstanciasPage() {
         setPdfModalTitulo(`Constancia Oficial ENT-${idPad} • ${entrega.trabajador.apellidos}, ${entrega.trabajador.nombres}`)
         setPdfModalUrl(url)
       } else {
-        window.open(archivo.rutaRelativa, '_blank')
+        window.open(`/api/entregas/${archivo.entregaId}/pdf`, '_blank')
       }
     } catch {
-      window.open(archivo.rutaRelativa, '_blank')
+      window.open(`/api/entregas/${archivo.entregaId}/pdf`, '_blank')
     } finally {
       setCargandoPdfId(null)
     }
@@ -350,10 +350,10 @@ export default function ConstanciasPage() {
       if (entrega) {
         generarActaEntregaPDF(entrega)
       } else {
-        window.open(archivo.rutaRelativa, '_blank')
+        window.open(`/api/entregas/${archivo.entregaId}/pdf`, '_blank')
       }
     } catch {
-      window.open(archivo.rutaRelativa, '_blank')
+      window.open(`/api/entregas/${archivo.entregaId}/pdf`, '_blank')
     }
   }
 
